@@ -378,6 +378,7 @@
   const WO_STATUSES = ['Open', 'Assigned', 'In progress', 'On hold – parts', 'On hold – vendor', 'On hold – approval', 'Completed', 'Closed', 'Cancelled'];
   const WO_CLOSED = ['Completed', 'Closed', 'Cancelled'];
 
+  const REPORT_ROUTES_REF = ['On-site team can fix it', 'Needs Alfred maintenance tech', 'Needs vendor service', 'Not sure – facilities decide'];
   const WO_TYPES = ['Repair', 'Emergency repair', 'Preventive maintenance', 'Inspection', 'Project / install', 'Signage install', 'New café opening', 'Renovation / remodel', 'Cleaning / janitorial', 'Replacement'];
 
   const WO_FIELDS = [
@@ -396,6 +397,7 @@
     { k: 'scheduledDate', label: 'Scheduled visit', type: 'date' },
     { k: 'arrivedDate', label: 'Tech on site', type: 'date' },
     { k: 'completedDate', label: 'Completed date', type: 'date' },
+    { k: 'route', label: 'Handled by', type: 'select', options: REPORT_ROUTES_REF },
     { k: 'resqId', label: 'ResQ work order #', type: 'text' },
     { k: 'resqLink', label: 'ResQ link', type: 'url', placeholder: 'Paste the work order URL from ResQ' },
     { k: 'vendorTicket', label: 'Vendor ticket #', type: 'text' },
@@ -537,10 +539,50 @@
     ['Cleanliness', 'Overall cleanliness meets Alfred standard', 'cleaning'],
   ];
 
+
+  // ----- QR "report a problem" flow -----
+  const REPORT_PROBLEMS = {
+    coffee: ['Not heating / low temperature', 'Low or no pressure', 'Leaking water', 'Steam wand not working', 'Grinder jammed / not grinding', 'Inconsistent dose / grind', 'Error code on display', "Won't power on", 'Strange noise'],
+    icewater: ['Not making ice', 'Ice tastes or smells off', 'Leaking water', 'Filter light on / filter due', 'Low water flow', 'Bin not filling / overflowing'],
+    refrig: ['Not cold enough (above 41°F)', 'Freezing product', 'Door not closing / sealing', 'Leaking water', 'Loud or unusual noise', 'Not running'],
+    hvac: ['Too hot', 'Too cold', 'Not turning on', 'Leaking / dripping', 'Bad smell', 'Loud noise', 'Thermostat blank'],
+    lighting: ['Light out', 'Flickering', 'Fixture damaged / hanging', 'Timer wrong (on/off at wrong time)'],
+    plumbing: ['Clogged / slow drain', 'Leaking', 'No hot water', 'Running water / won\'t shut off', 'Backup / overflow', 'Bad sewer smell'],
+    restroom: ['Toilet clogged', 'Toilet running / won\'t flush', 'Sink / faucet issue', 'Hand dryer not working', 'Dispenser broken', 'Lock / door issue', 'Leak on floor'],
+    fire: ['Extinguisher used / missing / low', 'Exit sign or emergency light out', 'Fire alarm trouble light / beeping', 'Sprinkler head damaged or leaking', 'Hood system issue', 'Blocked exit'],
+    electrical: ['Breaker tripped', 'Outlet not working', 'Burning smell / sparking', 'Power out to equipment', 'Panel label missing'],
+    doors: ["Won't lock / unlock", 'Key stuck or broken', 'Door not closing', 'Closer slamming', 'Hardware loose', 'Gate / roll-up stuck'],
+    security: ['Alarm won\'t arm / disarm', 'Camera offline', 'False alarm', 'Keypad not working'],
+    signage: ['Sign not lighting', 'Letters / section out', 'Damaged / peeling', 'Timer wrong'],
+    furniture: ['Wobbly / unstable', 'Broken / cracked', 'Loose part', 'Finish damaged'],
+    glass: ['Cracked / broken glass', 'Film / graphics peeling', 'Won\'t open / close'],
+  };
+  const REPORT_PROBLEMS_DEFAULT = ['Not working', 'Damaged / broken', 'Leaking', 'Loose / unstable', 'Needs cleaning', 'Missing'];
+
+  const REPORT_IMPACT = ['Still working – minor issue', 'Partially working', 'Down – not usable', 'Safety hazard (leak, sparks, smell, injury risk)'];
+  const REPORT_ROUTES = REPORT_ROUTES_REF;
+
+  // Safe first steps a café team can try before calling for service.
+  const SELF_FIX_TIPS = {
+    coffee: ['Check the machine is switched on and its breaker is not tripped.', 'Make sure the water supply valve under the counter is open.', 'Backflush the groups with cleaner per the closing checklist.', 'Power-cycle: switch off, wait 30 seconds, switch on, and allow 15–20 minutes to heat.', 'Grinders: clear the chute, check the hopper gate is open and the burr-adjust collar has not moved.'],
+    icewater: ['Check the machine is on and the water valve is open.', 'Make sure the bin is not full or the ice is not bridged over the sensor.', 'Check nothing is blocking the air vents (air-cooled units need clearance).', 'Do not change filters or open panels unless you are trained.'],
+    refrig: ['Close the door fully – check nothing is stopping it from sealing.', 'Check the temperature setting has not been changed.', 'Clear any boxes blocking the vents / fan inside.', 'Make sure it is plugged in and not overloaded with warm product.', 'Move product to another unit if it is above 41°F.'],
+    hvac: ['Check the thermostat mode (cool / heat / auto) and set point.', 'Replace thermostat batteries if the display is blank.', 'Make sure supply and return vents are not blocked.', 'Check the breaker for the unit.'],
+    lighting: ['Check the switch and any timer / photocell setting.', 'Replace the bulb with a spare of the same type (see equipment spec).', 'Do not open fixtures or touch wiring.'],
+    plumbing: ['Use a plunger on clogged sinks / drains.', 'For leaks: close the shutoff valve under the fixture and put a bucket down.', 'Never use chemical drain cleaner on grease lines.', 'No hot water: check the water heater has power / pilot.'],
+    restroom: ['Plunge a clogged toilet.', 'Jiggle the flush handle; for flush valves, check the side stop is open.', 'Refill dispensers and check batteries in automatic units.', 'Put out a wet-floor sign for any leak.'],
+    fire: ['Do NOT silence, reset or tamper with fire systems – report immediately.', 'Keep exits and extinguishers clear and accessible.', 'If there is fire, smoke or an alarm: evacuate and call 911.'],
+    electrical: ['You may reset a tripped breaker ONCE.', 'If it trips again, or there is a burning smell or sparking: stop, unplug if safe, and report as a safety hazard.', 'Never open the panel cover or touch wiring.'],
+    doors: ['Check the strike plate and that the door is fully closed before locking.', 'Do not force a stuck key – it may break in the lock.', 'Keep the door secured and notify the manager on duty if it will not lock.'],
+    security: ['Check all doors and windows are fully closed before arming.', 'Use the keypad instructions to clear the last alarm, then try again.', 'Call the monitoring company if you cannot disarm.'],
+  };
+  const SELF_FIX_DEFAULT = ['Check it is plugged in, switched on, and the breaker is not tripped.', 'Turn it off and on again.', 'Check for anything blocking or jammed.', 'Clean it per the daily checklist.'];
+
   window.SCHEMA = {
     AREAS, CONDITION, STATUS, CATEGORIES, fieldsFor, LOCATION_FIELDS, TRADES, VENDOR_FIELDS,
     WO_PRIORITIES, WO_STATUSES, WO_CLOSED, WO_FIELDS, PM_FREQS, PM_FIELDS, PM_TEMPLATE,
     DOC_KINDS, SEED_LOCATIONS, SEED_ALIASES, VISIT_CHECKLIST, WO_TYPES,
+    REPORT_PROBLEMS, REPORT_PROBLEMS_DEFAULT, REPORT_IMPACT, REPORT_ROUTES, SELF_FIX_TIPS, SELF_FIX_DEFAULT,
     catById: id => CATEGORIES.find(c => c.id === id),
   };
 })();

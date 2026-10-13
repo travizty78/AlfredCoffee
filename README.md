@@ -10,6 +10,7 @@ An offline-first facility management app for Alfred Coffee's California cafés, 
 | **Facility systems** (22 categories, including Signage & graphics and Cleaning & janitorial; each with its own fields and dropdowns) | Coffee equipment · Ice & water / filters · Refrigeration · HVAC · Lighting · Plumbing · Restrooms · Fire sprinklers & life safety · Electrical panels (with circuit directory) · Doors & locks · Alarm & security · Flooring · Painting & finishes · Ceilings · Windows & glass · Seating, counters & tables · Kitchen & small equipment · Roof & exterior · Utilities & accounts · Pest control |
 | **Every asset** | Type, area, make (brand suggestions), model, serial, asset tag, condition, status, service vendor, install / warranty / last / next service dates, notes, photos and files, and its full work order history with total spend |
 | **Work orders** | Auto-numbered (WO-0001). Types include repair, PM, project, signage install, new café opening, renovation, cleaning, and replacement. You can assign the internal team, the bev tech, or a vendor, and record operational impact. Priority P1–P4 sets the due date automatically. Covers status workflow, vendor assignment, PO / invoice / ticket #, estimate vs. actual cost, warranty claims, photos, and an activity log. You can change status inline and export to CSV |
+| **QR equipment labels** | Print a QR sticker for any item, a whole system, or a whole café. Staff scan it with their phone camera (no app or login needed) to open a simple form: *What's wrong?* → *Can it still be used?* → *Who should handle it?* (on-site team / Alfred maintenance tech / vendor / not sure). Choosing on-site team shows safe self-fix steps for that equipment type. Then one tap texts or emails facilities, with a "call vendor" button when they picked vendor. The message includes a link that opens a **pre-filled work order** here: café, asset, priority from impact, and the bev tech, facilities team or the asset's vendor already assigned. Tapping the link twice won't create a duplicate |
 | **ResQ bridge** | If Alfred runs work orders in ResQ, ResQ stays the system of record for requests, dispatch, quotes and invoices. Each work order has a ResQ # and link, and there's an "Open ResQ" shortcut. **Import ResQ CSV exports**: columns and café names are matched automatically (e.g. "Alfred Coffee - BH" → Beverly Hills), vendors are created as needed, and re-importing updates existing ResQ #s instead of duplicating them. Imported history feeds Reports and asset histories |
 | **Preventive maintenance** | A one-click standard café PM program with 28 tasks (fire extinguishers, sprinklers, hood, backflow, grease trap, HVAC filters, ice machine sanitizing, water filters, espresso PM, coils, pest, roof…). ✓ Done rolls the next due date forward |
 | **Site visits** | A 30-point walkthrough checklist (exterior, front of house, bar, back of house, restrooms, life safety, cleanliness) with a ✓ / ! / ✗ tap per item, a score, and a cleanliness rating. Every ✗ or ! automatically becomes a work order (P2 or P3). A visit-coverage list shows which cafés have gone longest without a visit |
@@ -30,6 +31,16 @@ An offline-first facility management app for Alfred Coffee's California cafés, 
 4. In Chrome, click the **Install** icon in the address bar. On iPhone, use Share → **Add to Home Screen**.
 
 After the first visit, the service worker caches the app so it opens with no signal.
+
+## Setting up QR labels
+
+1. Host the app (Option B above). Phones can only open a scanned label from a web address, not from a file.
+2. Go to Settings → **QR codes & facilities contact** and enter the name, mobile # and email that reports should go to, plus the hosted URL.
+3. Add equipment, then click **🏷️** on an item, **QR labels** on a system, or **Print all labels** on a café's overview. Print on weatherproof label stock.
+
+Contact info and equipment details are printed into each code, so reprint labels if they change.
+
+If ResQ QR stickers are already on Alfred's equipment, don't add a second sticker to the same device. Use these labels for anything ResQ doesn't cover.
 
 ## Your data — important
 

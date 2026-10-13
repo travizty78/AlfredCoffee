@@ -334,7 +334,7 @@
     const asset = id ? byId('assets', id) : { status: 'In service', condition: 'Good', ...defaults };
     const cat = S.catById(asset.category) || S.CATEGORIES[0];
     const fields = [{ k: 'locationId', label: 'Location', type: 'location', required: true }, ...S.fieldsFor(cat)];
-    const extra = id ? attachmentsHtml('asset', id, asset.locationId) + assetHistoryHtml(id) : '<p class="muted small">Save the asset first, then reopen it to attach photos, manuals, and warranty docs.</p>';
+    const extra = id ? `<div class="btn-row" style="margin-top:14px"><button type="button" class="btn sm" data-action="qr-label" data-id="${id}">🏷️ Print QR label</button><span class="muted small">Stick it on the equipment — staff scan it to report problems.</span></div>` + attachmentsHtml('asset', id, asset.locationId) + assetHistoryHtml(id) : '<p class="muted small">Save the asset first, then reopen it to attach photos, manuals, and warranty docs.</p>';
     openForm({
       title: `${cat.icon} ${id ? 'Edit' : 'Add'} – ${cat.label}`, fields, values: asset, ctx: { brands: cat.brands }, extra,
       onSave: v => { upsert('assets', { ...asset, ...v, category: cat.id }); toast('Saved'); },
@@ -628,6 +628,8 @@
           <button class="btn sm" data-action="edit-location" data-id="${l.id}">Edit info</button></section>
         <section class="card"><h2>Floor plans & life safety</h2>${plans.length ? `<ul class="list">${plans.map(d => `<li>${docIcon(d)} <a href="#" data-action="open-doc" data-id="${d.id}">${esc(d.title)}</a> <span class="muted">${esc(d.kind)}</span></li>`).join('')}</ul>` : '<p class="muted">No plans uploaded.</p>'}
           <button class="btn sm" data-action="upload-doc" data-loc="${l.id}">Upload plan</button></section>
+        <section class="card"><h2>🏷️ QR equipment labels</h2><p class="muted small">Print a QR sticker for every tracked item at this café. Staff scan it with their phone camera to report a problem — choosing whether the on-site team can fix it, it needs an Alfred tech, or a vendor.</p>
+          <button class="btn sm" data-action="qr-labels" data-loc="${l.id}">Print all labels (${state.assets.filter(a => a.locationId === l.id).length})</button></section>
       </div></div>`;
   }
 
@@ -640,10 +642,10 @@
       <td class="small">${keyFields.map(f => a[f.k] ? `<div><span class="muted">${esc(f.label)}:</span> ${esc(a[f.k])}</div>` : '').join('')}</td>
       <td>${statusPill(a.status)}${a.condition ? `<div class="muted small">${esc(a.condition)}</div>` : ''}</td>
       <td>${dueBadge([a.nextService, a.nextInspection].filter(Boolean).sort()[0])}</td>
-      <td class="row-actions"><button class="btn sm" data-action="add-wo" data-loc="${l.id}" data-cat="${cat.id}" data-asset="${a.id}" title="Create work order">+ WO</button><button class="btn sm" data-action="dup-asset" data-id="${a.id}" title="Duplicate">⧉</button></td></tr>`).join('');
+      <td class="row-actions"><button class="btn sm" data-action="add-wo" data-loc="${l.id}" data-cat="${cat.id}" data-asset="${a.id}" title="Create work order">+ WO</button><button class="btn sm" data-action="qr-label" data-id="${a.id}" title="Print QR label">🏷️</button><button class="btn sm" data-action="dup-asset" data-id="${a.id}" title="Duplicate">⧉</button></td></tr>`).join('');
     const openWO = state.workorders.filter(w => w.locationId === l.id && w.category === cat.id && !isClosed(w));
     return `<section class="card"><div class="card-head"><h2>${cat.icon} ${esc(cat.label)} <span class="count">${assets.length}</span></h2>
-        <div class="actions"><button class="btn" data-action="add-wo" data-loc="${l.id}" data-cat="${cat.id}">+ Work order</button><button class="btn primary" data-action="add-asset" data-loc="${l.id}" data-cat="${cat.id}">+ Add ${esc(cat.label.toLowerCase())} item</button></div></div>
+        <div class="actions">${assets.length ? `<button class="btn" data-action="qr-labels" data-loc="${l.id}" data-cat="${cat.id}">🏷️ QR labels</button>` : ''}<button class="btn" data-action="add-wo" data-loc="${l.id}" data-cat="${cat.id}">+ Work order</button><button class="btn primary" data-action="add-asset" data-loc="${l.id}" data-cat="${cat.id}">+ Add ${esc(cat.label.toLowerCase())} item</button></div></div>
       ${rows ? `<div class="table-wrap"><table class="table"><thead><tr><th>Item</th><th>Make / model</th><th>Specs</th><th>Status</th><th>Next service</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
         : emptyState(`No ${esc(cat.label.toLowerCase())} tracked at this location yet.`, `<button class="btn primary" data-action="add-asset" data-loc="${l.id}" data-cat="${cat.id}">+ Add first item</button>`)}
       </section>
@@ -810,6 +812,16 @@
         <label class="btn">⬆ Restore backup<input type="file" accept=".json,application/json" hidden data-change="import-json"></label></div>
         <h3>Spreadsheet exports (CSV)</h3>
         <div class="btn-row">${['locations', 'assets', 'workorders', 'pm', 'vendors', 'visits'].map(w => `<button class="btn sm" data-action="export-csv" data-what="${w}">${w}</button>`).join('')}</div>
+      </section>
+      <section class="card"><h2>🏷️ QR codes & facilities contact</h2>
+        <p class="small">Printed on every QR label. When staff scan a label and report a problem, the message goes to this contact with a link that opens a pre-filled work order here.</p>
+        <div class="form-grid">
+          <label class="field"><span>Facilities contact name</span><input id="set-fn" value="${esc(state.settings.facilitiesName || '')}" data-change="setting" data-key="facilitiesName" placeholder="e.g. Facilities – Travis"></label>
+          <label class="field"><span>Mobile # (for texts)</span><input type="tel" id="set-fp" value="${esc(state.settings.facilitiesPhone || '')}" data-change="setting" data-key="facilitiesPhone"></label>
+          <label class="field"><span>Email</span><input type="email" id="set-fe" value="${esc(state.settings.facilitiesEmail || '')}" data-change="setting" data-key="facilitiesEmail"></label>
+          <label class="field full"><span>Public app URL (where phones open the QR link)</span><input type="url" id="set-url" value="${esc(state.settings.appUrl || '')}" data-change="setting" data-key="appUrl" placeholder="${esc(pageBase() || 'https://<you>.github.io/AlfredCoffee/')}"></label>
+        </div>
+        <p class="muted small">${pageBase() ? `Leave the URL blank to use this address (${esc(pageBase())}).` : '⚠️ You opened the app as a file — host it (e.g. GitHub Pages, see README) and enter that URL so phones can open scanned labels.'} Reprint labels after changing the contact info.</p>
       </section>
       <section class="card"><h2>🔗 ResQ work orders</h2>
         <p class="small">If Alfred runs work orders in <b>ResQ</b>, keep ResQ as the system of record for requests, dispatch, quotes and invoices. Use this app for café specs, site visits, plans, and cross-café reporting. Import a ResQ work-order CSV export any time: columns and café names are matched automatically, and re-importing updates existing ResQ #s instead of creating duplicates.</p>
@@ -1038,6 +1050,183 @@
       </div>
       <section class="card"><h2>⚖️ Repair vs. replace candidates</h2><p class="muted small">Assets whose lifetime repair spend is ≥ 50% of replacement cost, or rated Poor / Failed / Out of service. Add a replacement cost on each asset to enable this.</p>
         ${table(['Asset', 'Location', 'Condition', '#Age', '#Repair spend', '#Replacement', '#Ratio'], rvr, 'No candidates right now.')}</section>`;
+  }
+
+  // ---------- QR codes: equipment labels → "report a problem" → work order ----------
+  const b64e = obj => btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  function b64d(str) {
+    try {
+      str = str.replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(decodeURIComponent(escape(atob(str + '==='.slice((str.length + 3) % 4)))));
+    } catch (e) { return null; }
+  }
+  const pageBase = () => location.protocol.startsWith('http') ? location.origin + location.pathname : '';
+  const appBase = () => (state.settings.appUrl || '').trim().replace(/#.*$/, '') || pageBase();
+
+  function qrSvg(text) {
+    const qr = qrcode(0, 'L');
+    qr.addData(text);
+    qr.make();
+    return qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true, alt: 'QR code' });
+  }
+
+  function assetReportUrl(a) {
+    const base = appBase();
+    if (!base) return '';
+    const v = a.vendorId && byId('vendors', a.vendorId);
+    const st = state.settings;
+    const data = { a: a.id, li: a.locationId, l: locName(a.locationId), n: a.name, c: a.category, t: a.type, m: [a.make, a.model].filter(Boolean).join(' '), s: a.serial,
+      vn: v && !isInternal(v) ? v.company : '', vp: v && !isInternal(v) ? (v.emergencyPhone || v.phone || '') : '', fn: st.facilitiesName, fp: st.facilitiesPhone, fe: st.facilitiesEmail };
+    Object.keys(data).forEach(k => { if (!data[k]) delete data[k]; });
+    return base + '#/report/' + b64e(data);
+  }
+
+  function printLabels(assets) {
+    if (!appBase()) { toast('Set your public app URL in Settings → QR codes first (QR codes need a web address phones can open).', 6000); location.hash = '#/settings'; return; }
+    const labels = assets.map(a => {
+      const cat = S.catById(a.category) || {};
+      return `<div class="label"><div class="qr">${qrSvg(assetReportUrl(a))}</div><div class="txt">
+        <div class="cta">📱 Scan to report a problem</div><div class="name">${esc(a.name)}</div>
+        <div class="meta">${esc(locName(a.locationId))} · ${esc(cat.label || '')}</div>
+        <div class="meta">${esc([a.make, a.model].filter(Boolean).join(' '))}${a.serial ? ' · S/N ' + esc(a.serial) : ''}${a.tag ? ' · Tag ' + esc(a.tag) : ''}</div>
+        <div class="brand">alfred facilities</div></div></div>`;
+    }).join('');
+    const w = window.open('', '_blank');
+    if (!w) return toast('Allow pop-ups to print labels');
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>QR labels</title><style>
+      body{font:12px/1.3 system-ui,sans-serif;margin:16px;color:#111}
+      .bar{margin-bottom:12px}.bar button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #111;background:#111;color:#fff;cursor:pointer}
+      .grid{display:grid;grid-template-columns:repeat(auto-fill,3.4in);gap:.15in}
+      .label{display:flex;gap:10px;align-items:center;width:3.4in;height:1.6in;padding:8px;border:1px dashed #999;border-radius:8px;box-sizing:border-box;break-inside:avoid;overflow:hidden}
+      .qr{flex:none;width:1.35in;height:1.35in}.qr svg{width:100%;height:100%}
+      .cta{font-weight:700;font-size:11px;margin-bottom:4px}.name{font-weight:700;font-size:13px;margin-bottom:2px}
+      .meta{color:#444;font-size:10px}.brand{margin-top:6px;font-family:Georgia,serif;font-size:10px;letter-spacing:.05em}
+      @media print{.bar{display:none}body{margin:0}.label{border-color:#ccc}}</style></head>
+      <body><div class="bar"><button onclick="print()">Print ${assets.length} label${assets.length === 1 ? '' : 's'}</button> <span>Tip: print on weatherproof label stock, or plain paper + clear packing tape.</span></div><div class="grid">${labels}</div></body></html>`);
+    w.document.close();
+  }
+
+  // Page opened by scanning a QR label (works on any phone; no app data needed).
+  function viewReport(code) {
+    const d = b64d(code || '');
+    document.body.classList.add('report-mode');
+    if (!d) return `<div class="report">${emptyState('This QR code could not be read. Ask your manager to reprint the label.')}</div>`;
+    const cat = S.catById(d.c) || { label: '', icon: '🔧' };
+    const problems = S.REPORT_PROBLEMS[d.c] || S.REPORT_PROBLEMS_DEFAULT;
+    const tips = S.SELF_FIX_TIPS[d.c] || S.SELF_FIX_DEFAULT;
+    const local = byId('assets', d.a);
+    const sel = (name, opts, blank) => `<select name="${name}" required><option value="">${esc(blank)}</option>${opts.map(o => `<option>${esc(o)}</option>`).join('')}</select>`;
+    let who = '';
+    try { who = localStorage.getItem('af-reporter') || ''; } catch (e) { /* ignore */ }
+    return `<div class="report">
+      <section class="card report-head"><div class="ico">${cat.icon}</div><div>
+        <h1>${esc(d.n || 'Equipment')}</h1>
+        <p class="muted">${esc(d.l || '')}${cat.label ? ' · ' + esc(cat.label) : ''}</p>
+        ${d.m || d.s ? `<p class="muted small">${esc(d.m || '')}${d.s ? ' · S/N ' + esc(d.s) : ''}</p>` : ''}</div></section>
+      ${d.c === 'fire' ? '<div class="callout danger">🔥 Fire / life safety equipment: do <b>not</b> silence, reset or tamper. If there is fire, smoke or an active alarm, evacuate and call 911.</div>' : ''}
+      <form id="report-form" class="card" novalidate>
+        <h2>Report a problem</h2>
+        <label class="field"><span>What's wrong?</span>${sel('problem', [...problems, 'Other'], '— Choose —')}</label>
+        <label class="field"><span>Can it still be used?</span>${sel('impact', S.REPORT_IMPACT, '— Choose —')}</label>
+        <div class="callout danger" data-show="hazard" hidden>⚠️ Safety hazard: stop using it, keep people away, and shut off water / power only if safe. Gas smell, fire or sparking → evacuate and call 911 first.</div>
+        <label class="field"><span>Who should handle it?</span>${sel('route', S.REPORT_ROUTES, '— Choose —')}</label>
+        <p class="muted small" data-show="suggest" hidden></p>
+        <div data-show="tips" hidden class="tips"><h3>Try these first</h3><ol>${tips.map(t => `<li>${esc(t)}</li>`).join('')}</ol>
+          <label class="field"><span>Did that fix it?</span><select name="fixed"><option value="">— Choose —</option><option>Yes – fixed on site</option><option>No – still needs help</option></select></label></div>
+        <label class="field"><span>Details (optional)</span><textarea name="details" rows="3" placeholder="Error code, where it's leaking, when it started…"></textarea></label>
+        <label class="field"><span>Your name</span><input name="by" value="${esc(who)}" autocomplete="name"></label>
+        <p class="muted small">📷 Take a photo — you can attach it to the text or email on the next step.</p>
+        <p class="form-error" hidden></p>
+        <button class="btn primary big" type="submit">Continue</button>
+      </form>
+      <section class="card" id="report-send" hidden></section>
+      ${local ? '<p class="muted small center">This device has Alfred Facilities data — you can log the work order directly on the next step.</p>' : ''}
+    </div>`;
+  }
+
+  function bindReport(code) {
+    const d = b64d(code || '');
+    const form = $('#report-form');
+    if (!d || !form) return;
+    const show = (k, on) => { const el = $(`[data-show="${k}"]`, form); if (el) el.hidden = !on; };
+    const suggest = () => {
+      const impact = form.elements.impact.value;
+      const hazard = impact.startsWith('Safety');
+      show('hazard', hazard);
+      const sug = $('[data-show="suggest"]', form);
+      const route = form.elements.route.value;
+      if ((hazard || impact.startsWith('Down')) && (!route || route === S.REPORT_ROUTES[0])) {
+        sug.hidden = false;
+        sug.textContent = d.c === 'coffee' || d.c === 'icewater' ? 'Suggested: Alfred maintenance tech (beverage tech) — facilities will be notified right away.' : 'Suggested: Alfred maintenance tech or vendor — facilities will be notified right away.';
+      } else sug.hidden = true;
+      show('tips', form.elements.route.value === S.REPORT_ROUTES[0]);
+    };
+    form.addEventListener('change', suggest);
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const f = form.elements;
+      const err = $('.form-error', form);
+      if (!f.problem.value || !f.impact.value || !f.route.value) { err.hidden = false; err.textContent = 'Please answer the three questions above.'; return; }
+      try { localStorage.setItem('af-reporter', f.by.value.trim()); } catch (ex) { /* ignore */ }
+      const fixed = f.route.value === S.REPORT_ROUTES[0] && f.fixed.value.startsWith('Yes');
+      const req = { r: uid(), a: d.a, li: d.li, l: d.l, n: d.n, c: d.c, p: f.problem.value, i: f.impact.value, h: f.route.value, d: f.details.value.trim(), by: f.by.value.trim(), at: new Date().toISOString(), x: fixed ? 1 : 0 };
+      const intake = pageBase() + '#/intake/' + b64e(req);
+      const lines = [
+        fixed ? '✅ Alfred facilities – fixed on site (FYI)' : (req.i.startsWith('Safety') ? '🚨 Alfred facilities – SAFETY' : req.i.startsWith('Down') ? '🔴 Alfred facilities – equipment down' : '🔧 Alfred facilities request'),
+        `Café: ${d.l || ''}`, `Equipment: ${d.n || ''}${d.m ? ` (${d.m}${d.s ? ', S/N ' + d.s : ''})` : ''}`,
+        `Problem: ${req.p}`, `Status: ${req.i}`, `Handle by: ${req.h}${req.h === S.REPORT_ROUTES[0] ? (fixed ? ' – fixed' : ' – NOT fixed, needs help') : ''}`,
+        req.d ? `Details: ${req.d}` : '', `Reported by: ${req.by || '—'} · ${new Date().toLocaleString()}`, '', `Log as work order: ${intake}`,
+      ].filter(x => x !== '');
+      const body = lines.join('\n');
+      const subject = lines[0] + ' – ' + (d.l || '') + ': ' + (d.n || '');
+      const btns = [];
+      if (byId('assets', d.a)) btns.push(`<a class="btn primary big" href="#/intake/${b64e(req)}">📝 Log work order now</a>`);
+      if (d.fp) btns.push(`<a class="btn ${btns.length ? '' : 'primary '}big" href="sms:${esc(d.fp.replace(/[^\d+]/g, ''))}?&body=${encodeURIComponent(body)}">💬 Text ${esc(d.fn || 'facilities')}</a>`);
+      if (d.fe) btns.push(`<a class="btn big" href="mailto:${esc(d.fe)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}">✉️ Email ${esc(d.fn || 'facilities')}</a>`);
+      if (req.h === S.REPORT_ROUTES[2] && d.vp && !fixed) btns.push(`<a class="btn big" href="tel:${esc(d.vp.replace(/[^\d+]/g, ''))}">📞 Call ${esc(d.vn || 'vendor')}</a>`);
+      btns.push(`<button type="button" class="btn big" data-copy>📋 Copy message</button>`);
+      const box = $('#report-send');
+      box.hidden = false;
+      box.innerHTML = `<h2>${fixed ? 'Thanks — let facilities know' : 'Send to facilities'}</h2>
+        ${req.i.startsWith('Safety') ? '<div class="callout danger">For a safety hazard, also <b>call</b> your manager / facilities now.</div>' : ''}
+        ${!d.fp && !d.fe ? '<p class="muted small">No facilities contact is on this label — copy the message and send it to your manager.</p>' : ''}
+        <div class="send-btns">${btns.join('')}</div><pre class="msg">${esc(body)}</pre>`;
+      $('[data-copy]', box).addEventListener('click', () => {
+        (navigator.clipboard ? navigator.clipboard.writeText(body) : Promise.reject()).then(() => toast('Copied'), () => toast('Select the text below and copy it'));
+      });
+      form.hidden = true;
+      box.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  // Link from a QR report (texted / emailed to facilities) → pre-filled work order.
+  function handleIntake(code) {
+    const q = b64d(code || '');
+    history.replaceState(null, '', '#/wo');
+    render();
+    if (!q) return toast('That request link is damaged.');
+    const dup = state.workorders.find(w => w.requestId === q.r);
+    if (dup) { toast(`Already logged as ${dup.number}`); return editWO(dup.id); }
+    const asset = byId('assets', q.a);
+    const locationId = byId('locations', q.li) ? q.li : (asset ? asset.locationId : guessLocation(q.l));
+    const pri = q.i.startsWith('Safety') ? 0 : q.i.startsWith('Down') ? 1 : q.i.startsWith('Partially') ? 2 : 3;
+    let vendorId = '';
+    if (q.h === S.REPORT_ROUTES[2] && asset) vendorId = asset.vendorId || '';
+    if (q.h === S.REPORT_ROUTES[1]) {
+      const team = state.vendors.filter(isInternal);
+      const bev = ['coffee', 'icewater'].includes(q.c) && team.find(v => /beverage/i.test(v.kind));
+      vendorId = (bev || team.find(v => /facilities/i.test(v.kind)) || team[0] || {}).id || '';
+    }
+    const fixed = !!q.x;
+    const reported = q.at ? iso(new Date(q.at)) : today();
+    editWO(null, {
+      requestId: q.r, title: `${q.n || 'Equipment'}: ${q.p}`, locationId, assetId: asset ? asset.id : '', category: q.c || '', reportedBy: q.by || '', reportedDate: reported,
+      priority: S.WO_PRIORITIES[fixed ? 3 : pri].label, woType: 'Repair', route: q.h, vendorId,
+      status: fixed ? 'Completed' : vendorId ? 'Assigned' : 'Open', completedDate: fixed ? reported : '', resolution: fixed ? 'Fixed on site by café team (self-fix steps).' : '',
+      impact: q.i.startsWith('Safety') || q.i.startsWith('Down') ? 'Station / menu item down' : q.i.startsWith('Partially') ? 'Minor – workaround' : 'None',
+      description: [`Reported via QR code${q.at ? ' at ' + new Date(q.at).toLocaleString() : ''}.`, `Status: ${q.i}`, `Requested: ${q.h}`, q.d ? `Details: ${q.d}` : ''].filter(Boolean).join('\n'),
+    });
+    if (!locationId) toast(`Couldn't match café "${q.l}" — pick the location.`, 5000);
   }
 
   // ---------- ResQ / CSV work-order import ----------
@@ -1350,7 +1539,10 @@
       dashboard: () => viewDashboard(), locations: () => viewLocations(), loc: () => viewLocation(r.args[0], r.args[1]),
       wo: () => viewWO(), pm: () => viewPM(), vendors: () => viewVendors(), docs: () => viewDocs(),
       search: () => viewSearch(r.args.join('/')), settings: () => viewSettings(), visits: () => viewVisits(), reports: () => viewReports(),
+      report: () => viewReport(r.args[0]),
     };
+    if (r.name === 'intake') { handleIntake(r.args[0]); return; }
+    document.body.classList.toggle('report-mode', r.name === 'report');
     const html = (views[r.name] || views.dashboard)();
     $('#main').innerHTML = html;
     updateResqNav();
@@ -1362,6 +1554,7 @@
       if (el) { el.focus(); try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { /* ignore */ } }
     }
     loadThumbs();
+    if (r.name === 'report') bindReport(r.args[0]);
     if (r.name === 'settings' && navigator.storage && navigator.storage.estimate) {
       navigator.storage.estimate().then(e => { const el = $('#storage-est'); if (el) el.textContent = `Using ${fmtSize(e.usage || 0)} of ~${fmtSize(e.quota || 0)} available browser storage.`; });
     }
@@ -1390,6 +1583,12 @@
       editWO(null, { woType: 'Preventive maintenance', title: p.title, locationId: p.locationId, category: p.category, assetId: p.assetId, vendorId: p.vendorId, priority: S.WO_PRIORITIES[3].label, description: p.procedure, dueDate: p.nextDue });
     },
     'apply-pm': el => applyPmTemplate(el.dataset.loc),
+    'qr-label': el => printLabels([byId('assets', el.dataset.id)]),
+    'qr-labels': el => {
+      const list = state.assets.filter(a => a.locationId === el.dataset.loc && (!el.dataset.cat || a.category === el.dataset.cat)).sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+      if (!list.length) return toast('No equipment tracked here yet');
+      printLabels(list);
+    },
     'add-visit': el => editVisit(null, { locationId: el.dataset.loc || '' }),
     'edit-visit': el => editVisit(el.dataset.id),
     'add-vendor': () => editVendor(),
@@ -1457,6 +1656,7 @@
         .then(() => { refreshAttachments(el.dataset.ownerId); toast(`${files.length} file(s) attached`); })
         .catch(err => toast('Upload failed: ' + err.message));
     } else if (kind === 'import-wo-csv') { if (el.files[0]) importWorkOrdersCsv(el.files[0]); el.value = ''; }
+    else if (kind === 'setting') { state.settings[el.dataset.key] = el.value.trim(); save(); toast('Saved'); }
     else if (kind === 'resq-url') { state.settings.resqUrl = el.value.trim(); save(); updateResqNav(); toast('ResQ link saved'); }
     else if (kind === 'import-json') { if (el.files[0]) importJson(el.files[0]); el.value = ''; }
     else if (kind === 'theme') { ui.theme = el.value; saveUi(); applyTheme(); }
