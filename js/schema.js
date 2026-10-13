@@ -28,6 +28,7 @@
     { k: 'lastService', label: 'Last service', type: 'date' },
     { k: 'nextService', label: 'Next service due', type: 'date' },
     { k: 'notes', label: 'Notes', type: 'textarea', full: true },
+    { k: '_photos', label: 'Photos', type: 'photos', full: true },
   ];
 
   // Each category: id, label, icon (emoji), brands datalist, type options, and extra fields.
@@ -335,11 +336,15 @@
     { k: 'leaseExp', label: 'Lease expiration', type: 'date' },
     { k: 'maintResp', label: 'Lease maintenance responsibilities', type: 'textarea', full: true, placeholder: 'e.g. Tenant: HVAC, plumbing to main. Landlord: roof, structure, sprinkler main.' },
     { k: 'waterShutoff', label: 'Water main shutoff location', type: 'text', full: true },
+    { k: '_ph_water', label: 'Water shutoff photos', type: 'photos', slot: 'shutoff-water', full: true },
     { k: 'gasShutoff', label: 'Gas shutoff location', type: 'text', full: true },
+    { k: '_ph_gas', label: 'Gas shutoff photos', type: 'photos', slot: 'shutoff-gas', full: true },
     { k: 'electricMain', label: 'Electrical main location', type: 'text', full: true },
+    { k: '_ph_electric', label: 'Electrical main photos', type: 'photos', slot: 'shutoff-electric', full: true },
     { k: 'healthPermit', label: 'Health permit # / exp', type: 'text' },
     { k: 'accessNotes', label: 'After-hours access / parking / delivery notes', type: 'textarea', full: true },
     { k: 'notes', label: 'Notes', type: 'textarea', full: true },
+    { k: '_ph_store', label: 'Location photos', type: 'photos', slot: 'storefront', full: true },
   ];
 
   const TRADES = ['General contractor', 'Handyman', 'HVAC', 'Refrigeration', 'Plumbing', 'Electrical', 'Espresso / coffee equipment', 'Ice machine', 'Water filtration', 'Fire sprinkler', 'Fire extinguisher', 'Fire alarm', 'Hood cleaning', 'Hood suppression', 'Grease trap pumping', 'Backflow testing', 'Pest control', 'Locksmith', 'Glass / glazing', 'Window cleaning', 'Flooring', 'Painting', 'Roofing', 'Millwork / carpentry', 'Furniture', 'Lighting', 'Signage', 'Security / alarm', 'IT / network / POS', 'Janitorial', 'Waste / recycling', 'Landscaping', 'Utility', 'Kitchen equipment', 'Other'];
@@ -387,6 +392,8 @@
     { k: 'category', label: 'System / category', type: 'category' },
     { k: 'assetId', label: 'Asset', type: 'asset' },
     { k: 'priority', label: 'Priority', type: 'select', options: WO_PRIORITIES.map(p => p.label), required: true },
+    { k: 'description', label: 'Description', type: 'textarea', full: true },
+    { k: '_photos', label: 'Photos', type: 'photos', full: true },
     { k: 'status', label: 'Status', type: 'select', options: WO_STATUSES },
     { k: 'woType', label: 'Type', type: 'select', options: WO_TYPES },
     { k: 'vendorId', label: 'Assigned to (team / vendor)', type: 'vendor' },
@@ -406,7 +413,6 @@
     { k: 'cost', label: 'Actual cost ($)', type: 'number' },
     { k: 'invoice', label: 'Invoice #', type: 'text' },
     { k: 'warranty', label: 'Warranty claim', type: 'select', options: YESNO },
-    { k: 'description', label: 'Description', type: 'textarea', full: true },
     { k: 'resolution', label: 'Resolution / work performed', type: 'textarea', full: true },
   ];
 
@@ -500,7 +506,7 @@
     ['Westwood', 'WW', '1154 Westwood Blvd', 'Los Angeles', '90024', '(424) 404-1700', 'Los Angeles – Westside'],
     ['Calabasas (new build)', 'CAL', '', 'Calabasas', '', '', 'San Fernando Valley', 'Café', 'Under construction'],
     ['Alfred HQ', 'HQ', '708 N Croft Ave', 'Los Angeles', '90069', '', 'Los Angeles – Central', 'Headquarters / office'],
-    ['Warehouse', 'WH', '', 'Van Nuys', '', '', 'San Fernando Valley', 'Warehouse'],
+    ['Warehouse', 'WH', '6711 Odessa Ave', 'Van Nuys', '91406', '', 'San Fernando Valley', 'Warehouse'],
   ];
   // Café photos from locations.alfred.la (img/locations/<storeNo>.jpg), shown until a team photo is added.
   const SITE_PHOTOS = ['ak', 'ad', 'bam', 'bh', 'bw', 'bur', 'can', 'cw', 'enc', 'hp', 'kt', 'lax', 'ma', 'mdr', 'mp', 'pv', 'pa', 'pr', 'ro', 'saw', 'sl', 'tv', 'vp', 'ww'];

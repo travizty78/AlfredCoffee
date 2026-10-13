@@ -185,9 +185,10 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 .vendor-card.internal { border-left: 3px solid var(--blue); }
 .perf { color: var(--muted); margin: -4px 0 8px; }
 
-/* café hero photo */
-.hero-wrap { margin: -4px 0 16px; }
-.loc-hero { display: block; width: 100%; max-width: 560px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: var(--surface-2); }
+/* in-form photo viewer */
+.lightbox { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; gap: 12px; }
+.lightbox img { max-width: 100%; max-height: calc(100vh - 110px); border-radius: 8px; }
+.lb-bar { display: flex; gap: 8px; width: min(600px, 100%); }
 
 /* photo slots */
 .photos { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
@@ -228,6 +229,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--muted); }
 .field > span { font-weight: 600; }
 .field.full { grid-column: 1 / -1; }
+.field .photos { margin-top: 2px; }
 .req { color: var(--red); }
 .checks { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--text); font-size: .88rem; }
 .check { display: flex; align-items: center; gap: 6px; }

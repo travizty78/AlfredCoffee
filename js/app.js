@@ -145,6 +145,9 @@
         input = `<div class="checks">${sortedLocations().map(l => `<label class="check"><input type="checkbox" name="${f.k}" value="${esc(l.id)}"${set.has(l.id) ? ' checked' : ''}> ${esc(l.name)}</label>`).join('') || '<span class="muted">No locations yet</span>'}</div>`;
         return `<div class="field full"><span>${esc(f.label)}</span>${input}</div>`;
       }
+      case 'photos':
+        if (!ctx.owner) return '';
+        return `<div class="field full"><span>${esc(f.label)}</span>${photoSlot({ ...ctx.owner, slot: f.slot || '', kind: 'Photo', label: 'Add photo', imagesOnly: !f.slot })}</div>`;
       case 'file': input = `<input type="file" name="${f.k}" id="${id}" multiple accept="${esc(f.accept || '')}">`; break;
       default: {
         const list = f.list && ctx.brands && ctx.brands.length ? ` list="dl_${f.k}"` : '';
@@ -159,6 +162,7 @@
   function collect(form, fields) {
     const out = {};
     for (const f of fields) {
+      if (f.type === 'photos') continue;
       if (f.type === 'locations') out[f.k] = $$(`input[name="${f.k}"]:checked`, form).map(i => i.value);
       else if (f.type === 'file') out[f.k] = [...(form.elements[f.k].files || [])];
       else { const el = form.elements[f.k]; out[f.k] = el ? el.value.trim() : ''; }
@@ -176,7 +180,9 @@
   }
   function closeModal() { const d = dialog(); if (d.open) d.close(); d.innerHTML = ''; }
 
-  function openForm({ title, fields, values = {}, ctx = {}, onSave, onDelete, extra = '', wide = true }) {
+  let pendingNew = null; // { coll, id } of a record being created, so photos added then cancelled are removed
+  function openForm({ title, fields, values = {}, ctx = {}, onSave, onDelete, extra = '', wide = true, newRecord = null }) {
+    pendingNew = newRecord;
     const html = `<form id="modal-form" novalidate>
       <div class="form-grid">${fields.map(f => fieldHtml(f, values[f.k], ctx, values)).join('')}</div>
       ${extra}
@@ -302,25 +308,30 @@
     : (kind && !d.ownerId && !d.slot && d.locationId === locationId && d.kind === kind));
 
   // A row of photo thumbnails with an "add" tile. Used for café photos, shutoffs, plans, systems.
-  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo', label = 'Add photo', pdf = false }) {
-    const docs = slotDocs(ownerId, slot, locationId, kind);
-    return `<div class="photos">${docs.map(thumbHtml).join('')}
+  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo', label = 'Add photo', pdf = false, imagesOnly = false }) {
+    const docs = slotDocs(ownerId, slot, locationId, kind).filter(d => !imagesOnly || isImage(d));
+    return `<div class="photos" data-photos="${esc(JSON.stringify({ ownerType, ownerId, slot, locationId, kind, label, pdf, imagesOnly }))}">${docs.map(thumbHtml).join('')}
       <label class="ph add" title="${esc(label)}"><b>＋</b><small>${esc(label)}</small><input type="file" multiple hidden accept="image/*${pdf ? ',application/pdf' : ''}"
         data-change="slot-upload" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-slot="${esc(slot)}" data-loc="${esc(locationId)}" data-kind="${esc(kind)}"></label></div>`;
   }
 
   function attachmentsHtml(ownerType, ownerId, locationId) {
     const docs = state.docs.filter(d => d.ownerId === ownerId);
-    const imgs = docs.filter(isImage);
+    const imgs = ownerType === 'vendor' ? docs.filter(isImage) : [];
     return `<section class="attach" data-attach="${esc(ownerId)}">
-      <h3>Photos & files</h3>
+      <h3>${ownerType === 'vendor' ? 'Photos & files' : 'Documents (manuals, invoices, quotes, PDFs)'}</h3>
       ${imgs.length ? `<div class="photos">${imgs.map(thumbHtml).join('')}</div>` : ''}
       <ul class="file-list">${docs.filter(d => !isImage(d)).map(d => `<li>${docIcon(d)} <a href="#" data-action="open-doc" data-id="${d.id}">${esc(d.title)}</a> <span class="muted">${esc(d.kind)} · ${fmtSize(d.size || 0)}</span>
-        <button type="button" class="link danger" data-action="delete-doc-inline" data-id="${d.id}">remove</button></li>`).join('') || (imgs.length ? '' : '<li class="muted">No photos or files yet</li>')}</ul>
+        <button type="button" class="link danger" data-action="delete-doc-inline" data-id="${d.id}">remove</button></li>`).join('') || (imgs.length ? '' : '<li class="muted">None yet</li>')}</ul>
       <div class="attach-row">
-        ${selectHtml('attachKind', S.DOC_KINDS.map(k => [k, k]), ownerType === 'workorder' ? 'Photo' : 'Photo', 'Kind', 'class="sm"')}
-        <label class="btn sm">📷 Add photo / file<input type="file" multiple hidden data-change="attach" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-loc="${esc(locationId || '')}" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.dwg"></label>
+        ${selectHtml('attachKind', S.DOC_KINDS.map(k => [k, k]), ownerType === 'workorder' ? 'Invoice' : ownerType === 'vendor' ? 'Certificate of insurance (COI)' : 'Manual / spec sheet', 'Kind', 'class="sm"')}
+        <label class="btn sm">📎 Add document<input type="file" multiple hidden data-change="attach" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-loc="${esc(locationId || '')}" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.dwg"></label>
       </div></section>`;
+  }
+
+  function refreshPhotoBoxes() {
+    for (const box of $$('[data-photos]')) box.outerHTML = photoSlot(JSON.parse(box.dataset.photos));
+    loadThumbs();
   }
 
   function refreshAttachments(ownerId) {
@@ -336,7 +347,18 @@
     if (!doc) return;
     try {
       const url = await fileUrl(doc.fileId);
-      if (isImage(doc) && !dialog().open) {
+      if (isImage(doc) && dialog().open) {
+        const lb = document.createElement('div');
+        lb.className = 'lightbox';
+        lb.innerHTML = `<img src="${url}" alt=""><div class="lb-bar"><button type="button" class="btn danger" data-lb="delete">Delete photo</button><span class="spacer"></span><button type="button" class="btn" data-lb="close">Close</button></div>`;
+        lb.addEventListener('click', async e => {
+          const b = e.target.closest('[data-lb]');
+          if (!b && e.target !== lb) return;
+          if (b && b.dataset.lb === 'delete') { if (!confirm('Delete this photo?')) return; await deleteDoc(doc.id); refreshPhotoBoxes(); }
+          lb.remove();
+        });
+        dialog().appendChild(lb);
+      } else if (isImage(doc)) {
         openModal(doc.title, `<div class="viewer"><img src="${url}" alt="${esc(doc.title)}"></div>
           <div class="modal-actions"><button class="btn danger" data-action="delete-doc-view" data-id="${doc.id}">Delete</button><span class="spacer"></span><a class="btn" href="${url}" download="${esc(doc.fileName || doc.title)}">Download</a><a class="btn" href="${url}" target="_blank" rel="noopener">Full size</a></div>`, true);
       } else {
@@ -355,9 +377,10 @@
 
   // ---------- record editors ----------
   function editLocation(id) {
-    const loc = id ? byId('locations', id) : { status: 'Open' };
+    const loc = id ? byId('locations', id) : { id: uid(), status: 'Open' };
     openForm({
       title: id ? 'Edit location' : 'Add location', fields: S.LOCATION_FIELDS, values: loc,
+      ctx: { owner: { ownerType: 'location', ownerId: loc.id, locationId: loc.id } }, newRecord: id ? null : { coll: 'locations', id: loc.id },
       onSave: v => { const r = upsert('locations', { ...loc, ...v }); if (!id) location.hash = `#/loc/${r.id}/overview`; toast('Location saved'); },
       onDelete: id ? () => {
         const n = state.assets.filter(a => a.locationId === id).length + state.workorders.filter(w => w.locationId === id).length;
@@ -374,12 +397,13 @@
   }
 
   function editAsset(id, defaults = {}) {
-    const asset = id ? byId('assets', id) : { status: 'In service', condition: 'Good', ...defaults };
+    const asset = id ? byId('assets', id) : { id: uid(), status: 'In service', condition: 'Good', ...defaults };
     const cat = S.catById(asset.category) || S.CATEGORIES[0];
     const fields = [{ k: 'locationId', label: 'Location', type: 'location', required: true }, ...S.fieldsFor(cat)];
-    const extra = id ? `<div class="btn-row" style="margin-top:14px"><button type="button" class="btn sm" data-action="qr-label" data-id="${id}">🏷️ Print QR label</button><span class="muted small">Stick it on the equipment — staff scan it to report problems.</span></div>` + attachmentsHtml('asset', id, asset.locationId) + assetHistoryHtml(id) : '<p class="muted small">Save the asset first, then reopen it to attach photos, manuals, and warranty docs.</p>';
+    const extra = attachmentsHtml('asset', asset.id, asset.locationId) + (id ? assetHistoryHtml(id) : '');
     openForm({
-      title: `${cat.icon} ${id ? 'Edit' : 'Add'} – ${cat.label}`, fields, values: asset, ctx: { brands: cat.brands }, extra,
+      title: `${cat.icon} ${id ? 'Edit' : 'Add'} – ${cat.label}`, fields, values: asset, extra,
+      ctx: { brands: cat.brands, owner: { ownerType: 'asset', ownerId: asset.id, locationId: asset.locationId || '' } }, newRecord: id ? null : { coll: 'assets', id: asset.id },
       onSave: v => { upsert('assets', { ...asset, ...v, category: cat.id }); toast('Saved'); },
       onDelete: id ? () => { state.docs.filter(d => d.ownerId === id).forEach(d => deleteDoc(d.id)); remove('assets', id); } : null,
     });
@@ -398,14 +422,15 @@
   }
 
   function editWO(id, defaults = {}) {
-    const wo = id ? byId('workorders', id) : { status: 'Open', priority: S.WO_PRIORITIES[2].label, woType: 'Repair', reportedDate: today(), ...defaults };
-    const extra = id ? attachmentsHtml('workorder', id, wo.locationId) + woHistoryHtml(wo) : '';
+    const wo = id ? byId('workorders', id) : { id: uid(), status: 'Open', priority: S.WO_PRIORITIES[2].label, woType: 'Repair', reportedDate: today(), ...defaults };
+    const extra = attachmentsHtml('workorder', wo.id, wo.locationId) + (id ? woHistoryHtml(wo) : '');
     const vendor = wo.vendorId && byId('vendors', wo.vendorId);
     const resqHref = wo.resqLink || state.settings.resqUrl;
     const resqBox = resqHref ? `<div class="callout"><a href="${esc(resqHref)}" target="_blank" rel="noopener">🔗 Open ${wo.resqLink ? `ResQ work order ${esc(wo.resqId || '')}` : 'ResQ'} ↗</a>${!wo.resqId ? ' <span class="muted small">— if this was submitted in ResQ, paste its ResQ # and link above to keep them linked.</span>' : ''}</div>` : '';
     const vendorBox = resqBox + (vendor ? `<div class="callout">📞 <b>${esc(vendor.company)}</b> ${telLink(vendor.phone)} ${vendor.emergencyPhone ? ' · After-hours: ' + telLink(vendor.emergencyPhone) : ''} ${mailLink(vendor.email)}</div>` : '');
     openForm({
       title: id ? `Work order ${wo.number}` : 'New work order', fields: S.WO_FIELDS, values: wo, extra: vendorBox + extra,
+      ctx: { owner: { ownerType: 'workorder', ownerId: wo.id, locationId: wo.locationId || '' } }, newRecord: id ? null : { coll: 'workorders', id: wo.id },
       onSave: v => {
         const rec = { ...wo, ...v };
         if (!rec.dueDate) {
@@ -645,7 +670,7 @@
          <label class="sys-select">Facility system: ${selectHtml('sys', sysOptions, S.catById(tab) ? tab : '', '— Choose a system —', `data-change="goto-system" data-loc="${id}"`)}</label></nav>`;
 
     let body;
-    if (tab === 'overview') body = (heroImg(l, 'loc-hero') ? `<div class="hero-wrap">${heroImg(l, 'loc-hero')}</div>` : '') + locationOverview(l, counts);
+    if (tab === 'overview') body = locationOverview(l, counts);
     else if (tab === 'wo') body = woSection({ loc: id }, true);
     else if (tab === 'pm') body = pmSection({ loc: id }, true);
     else if (tab === 'docs') body = docsSection({ loc: id }, true);
@@ -1545,6 +1570,20 @@
     download(`alfred-${what}-${today()}.csv`, toCsv(state[what], cols), 'text/csv');
   }
 
+  // Fill in newly known details (e.g. an address) for existing Alfred locations, once per data version.
+  const SEED_VERSION = 2;
+  function fillKnownDetails() {
+    if ((state.settings.seedVersion || 0) >= SEED_VERSION || !state.locations.length) return;
+    for (const [name, storeNo, address, city, zip, phone, region] of S.SEED_LOCATIONS) {
+      const l = state.locations.find(x => x.name === name || x.id === 'loc-' + storeNo.toLowerCase());
+      if (!l) continue;
+      if (address && !l.address) Object.assign(l, { address, city, zip, region });
+      if (phone && !l.phone) l.phone = phone;
+    }
+    state.settings.seedVersion = SEED_VERSION;
+    save();
+  }
+
   function seedLocations(quiet) {
     let added = 0, updated = 0, removed = 0;
     const realNames = new Set(S.SEED_LOCATIONS.map(r => r[0]));
@@ -1718,7 +1757,7 @@
       if (!files.length) return;
       toast('Saving photo…');
       addFiles(files, { ownerType: el.dataset.ownerType, ownerId: el.dataset.ownerId, slot: el.dataset.slot, locationId: el.dataset.loc, kind: el.dataset.kind })
-        .then(() => { toast(`${files.length} photo${files.length > 1 ? 's' : ''} saved`); render(); })
+        .then(() => { toast(`${files.length} photo${files.length > 1 ? 's' : ''} added`); if (el.closest('#modal')) refreshPhotoBoxes(); else render(); })
         .catch(err => toast('Upload failed: ' + err.message));
     } else if (kind === 'import-wo-csv') { if (el.files[0]) importWorkOrdersCsv(el.files[0]); el.value = ''; }
     else if (kind === 'setting') { state.settings[el.dataset.key] = el.value.trim(); save(); toast('Saved'); }
@@ -1809,7 +1848,8 @@
   async function startCloud() {
     toast('Loading your information…');
     await Cloud.start();
-    if (!state.locations.length && Cloud.status.state === 'synced') { seedLocations(true); Cloud.syncNow(); }
+    if (!state.locations.length && Cloud.status.state === 'synced') { seedLocations(true); state.settings.seedVersion = SEED_VERSION; Cloud.syncNow(); }
+    else if (Cloud.status.state === 'synced') fillKnownDetails();
     render();
     updateNet();
   }
@@ -1828,7 +1868,11 @@
     applyTheme();
     updateNet();
     // Closing the native dialog via Esc should also clear it.
-    $('#modal').addEventListener('close', () => { $('#modal').innerHTML = ''; });
+    $('#modal').addEventListener('close', () => {
+      $('#modal').innerHTML = '';
+      if (pendingNew && !byId(pendingNew.coll, pendingNew.id)) state.docs.filter(d => d.ownerId === pendingNew.id).forEach(d => deleteDoc(d.id));
+      pendingNew = null;
+    });
     try {
       state = Object.assign(blankState(), await DB.loadState() || {});
     } catch (e) {
@@ -1855,7 +1899,8 @@
       startCloud();
       return;
     }
-    if (!state.locations.length && !publicPage) seedLocations(true);
+    if (!state.locations.length && !publicPage) { seedLocations(true); state.settings.seedVersion = SEED_VERSION; }
+    else if (!publicPage) fillKnownDetails();
     render();
   }
 
