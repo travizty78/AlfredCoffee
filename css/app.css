@@ -185,6 +185,10 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 .vendor-card.internal { border-left: 3px solid var(--blue); }
 .perf { color: var(--muted); margin: -4px 0 8px; }
 
+/* café hero photo */
+.hero-wrap { margin: -4px 0 16px; }
+.loc-hero { display: block; width: 100%; max-width: 560px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: var(--surface-2); }
+
 /* photo slots */
 .photos { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
 .ph { width: 84px; height: 84px; border-radius: 8px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border); display: grid; place-items: center; color: var(--muted); text-align: center; flex: none; }
@@ -199,6 +203,8 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 .shutoff .dt { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
 .loc-card.has-pic { padding-top: 0; overflow: hidden; }
 .loc-pic { display: block; width: calc(100% + 28px); margin: 0 -14px 10px; height: 120px; object-fit: cover; background: var(--surface-2); }
+.loc-pic.placeholder { display: grid; place-items: center; background: #000; }
+.loc-pic.placeholder img { width: 64px; height: 64px; }
 .asset-cell { display: flex; gap: 10px; align-items: flex-start; }
 .mini { flex: none; width: 44px; height: 44px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
 .mini img { width: 100%; height: 100%; object-fit: cover; }

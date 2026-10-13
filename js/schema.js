@@ -502,6 +502,9 @@
     ['Alfred HQ', 'HQ', '708 N Croft Ave', 'Los Angeles', '90069', '', 'Los Angeles – Central', 'Headquarters / office'],
     ['Warehouse', 'WH', '', 'Van Nuys', '', '', 'San Fernando Valley', 'Warehouse'],
   ];
+  // Café photos from locations.alfred.la (img/locations/<storeNo>.jpg), shown until a team photo is added.
+  const SITE_PHOTOS = ['ak', 'ad', 'bam', 'bh', 'bw', 'bur', 'can', 'cw', 'enc', 'hp', 'kt', 'lax', 'ma', 'mdr', 'mp', 'pv', 'pa', 'pr', 'ro', 'saw', 'sl', 'tv', 'vp', 'ww'];
+
   // Names used by the earlier guessed starter list → real café names.
   const SEED_ALIASES = { 'Alfred – Silver Lake': 'Silverlake', 'Alfred – Downtown LA': 'Arts District', 'Alfred – Studio City': 'Ventura Place' };
 
@@ -581,7 +584,7 @@
   window.SCHEMA = {
     AREAS, CONDITION, STATUS, CATEGORIES, fieldsFor, LOCATION_FIELDS, TRADES, VENDOR_FIELDS,
     WO_PRIORITIES, WO_STATUSES, WO_CLOSED, WO_FIELDS, PM_FREQS, PM_FIELDS, PM_TEMPLATE,
-    DOC_KINDS, SEED_LOCATIONS, SEED_ALIASES, VISIT_CHECKLIST, WO_TYPES,
+    DOC_KINDS, SEED_LOCATIONS, SEED_ALIASES, SITE_PHOTOS, VISIT_CHECKLIST, WO_TYPES,
     REPORT_PROBLEMS, REPORT_PROBLEMS_DEFAULT, REPORT_IMPACT, REPORT_ROUTES, SELF_FIX_TIPS, SELF_FIX_DEFAULT,
     catById: id => CATEGORIES.find(c => c.id === id),
   };

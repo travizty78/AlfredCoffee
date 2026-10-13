@@ -293,6 +293,10 @@
   const isImage = d => (d.mime || '').startsWith('image/');
   const docIcon = d => isImage(d) ? '🖼️' : (d.mime || '').includes('pdf') ? '📄' : '📎';
 
+  const sitePhoto = l => { const c = (l.storeNo || '').toLowerCase(); return S.SITE_PHOTOS.includes(c) ? `img/locations/${c}.jpg` : ''; };
+  const storefrontDoc = l => state.docs.find(d => d.ownerId === l.id && d.slot === 'storefront' && isImage(d));
+  // Main picture for a café: the team's own photo if there is one, otherwise the website photo.
+  const heroImg = (l, cls) => { const d = storefrontDoc(l); return d ? `<img class="${cls}" data-thumb="${esc(d.fileId)}" alt="">` : sitePhoto(l) ? `<img class="${cls}" src="${sitePhoto(l)}" alt="" loading="lazy">` : ''; };
   const thumbHtml = d => `<a href="#" class="ph" data-action="open-doc" data-id="${d.id}" title="${esc(d.title)}">${isImage(d) ? `<img data-thumb="${esc(d.fileId)}" alt="">` : `<span>${docIcon(d)}<small>${esc(d.title)}</small></span>`}</a>`;
   const slotDocs = (ownerId, slot, locationId, kind) => state.docs.filter(d => d.ownerId === ownerId ? (d.slot || '') === slot
     : (kind && !d.ownerId && !d.slot && d.locationId === locationId && d.kind === kind));
@@ -608,9 +612,9 @@
     const regions = [...new Set(state.locations.map(l => l.region).filter(Boolean))].sort().map(r => [r, r]);
     const cards = list.map(l => {
       const open = state.workorders.filter(w => w.locationId === l.id && !isClosed(w)).length;
-      const pic = state.docs.find(d => d.ownerId === l.id && d.slot === 'storefront' && isImage(d));
-      return `<a class="loc-card${pic ? ' has-pic' : ''}" href="#/loc/${l.id}/overview">
-        ${pic ? `<img class="loc-pic" data-thumb="${esc(pic.fileId)}" alt="">` : ''}
+      const pic = heroImg(l, 'loc-pic') || '<div class="loc-pic placeholder"><img src="icons/icon.svg" alt=""></div>';
+      return `<a class="loc-card has-pic" href="#/loc/${l.id}/overview">
+        ${pic}
         <div class="loc-top"><h3>${esc(l.name)}</h3>${l.status && l.status !== 'Open' ? `<span class="pill gray">${esc(l.status)}</span>` : ''}</div>
         <p class="muted">${esc([l.address, l.city, l.zip].filter(Boolean).join(', ')) || '<i>Address not set</i>'}</p>
         <div class="loc-meta"><span>🧾 ${open} open WO</span><span>🔧 ${state.assets.filter(a => a.locationId === l.id).length} assets</span>${l.manager ? `<span>👤 ${esc(l.manager)}</span>` : ''}</div></a>`;
@@ -641,7 +645,7 @@
          <label class="sys-select">Facility system: ${selectHtml('sys', sysOptions, S.catById(tab) ? tab : '', '— Choose a system —', `data-change="goto-system" data-loc="${id}"`)}</label></nav>`;
 
     let body;
-    if (tab === 'overview') body = locationOverview(l, counts);
+    if (tab === 'overview') body = (heroImg(l, 'loc-hero') ? `<div class="hero-wrap">${heroImg(l, 'loc-hero')}</div>` : '') + locationOverview(l, counts);
     else if (tab === 'wo') body = woSection({ loc: id }, true);
     else if (tab === 'pm') body = pmSection({ loc: id }, true);
     else if (tab === 'docs') body = docsSection({ loc: id }, true);
@@ -666,8 +670,9 @@
             ${photoSlot({ ownerType: 'location', ownerId: l.id, slot, locationId: l.id, label: 'Photo' })}</div>`).join('')}</div></section>
       </div>
       <div class="stack">
-        <section class="card"><h2>Location photos</h2><p class="muted small">Storefront, interior, or a screenshot from locations.alfred.la.</p>
-          ${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'storefront', locationId: l.id, label: 'Add photo / screenshot' })}</section>
+        <section class="card"><h2>Location photos</h2><p class="muted small">Storefront, interior, back of house, anything useful.</p>
+          ${sitePhoto(l) ? `<div class="photos"><a class="ph" href="${sitePhoto(l)}" target="_blank" rel="noopener" title="Photo from locations.alfred.la"><img src="${sitePhoto(l)}" alt=""></a></div><p class="muted small">↑ From the Alfred website. Photos you add below show first.</p>` : ''}
+          ${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'storefront', locationId: l.id, label: 'Add photo' })}</section>
         <section class="card"><h2>Location info</h2>${info ? `<dl class="info">${info}</dl>` : '<p class="muted">No details yet.</p>'}
           ${text('Lease maintenance responsibilities', l.maintResp)}${text('Access / parking / delivery', l.accessNotes)}${text('Notes', l.notes)}
           <button class="btn sm" data-action="edit-location" data-id="${l.id}">Edit info</button></section>
