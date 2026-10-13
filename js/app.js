@@ -57,7 +57,7 @@
 
   // ---------- state ----------
   let state = null;
-  const blankState = () => ({ version: 1, locations: [], assets: [], vendors: [], workorders: [], pm: [], docs: [], seq: { wo: 1 }, createdAt: new Date().toISOString() });
+  const blankState = () => ({ version: 1, locations: [], assets: [], vendors: [], workorders: [], pm: [], docs: [], visits: [], seq: { wo: 1 }, createdAt: new Date().toISOString() });
 
   let saveTimer = null;
   function save() {
@@ -94,8 +94,12 @@
 
   // ---------- UI prefs (per device convenience only) ----------
   const ui = (() => {
-    const defaults = { wo: { loc: '', status: 'open', pri: '', cat: '', q: '' }, pm: { loc: '', cat: '', due: 'all', q: '' }, vendors: { trade: '', q: '' }, docs: { loc: '', kind: '', q: '' }, locs: { region: '', q: '' }, theme: '' };
-    try { return Object.assign(defaults, JSON.parse(localStorage.getItem('af-ui') || '{}')); } catch (e) { return defaults; }
+    const defaults = { wo: { loc: '', status: 'open', pri: '', cat: '', q: '' }, pm: { loc: '', cat: '', due: 'all', q: '' }, vendors: { trade: '', q: '' }, docs: { loc: '', kind: '', q: '' }, visits: { loc: '' }, reports: { range: '90' }, locs: { region: '', q: '' }, theme: '' };
+    try {
+      const saved = JSON.parse(localStorage.getItem('af-ui') || '{}');
+      for (const k of Object.keys(saved)) defaults[k] = typeof defaults[k] === 'object' ? { ...defaults[k], ...saved[k] } : saved[k];
+    } catch (e) { /* ignore */ }
+    return defaults;
   })();
   const saveUi = () => { try { localStorage.setItem('af-ui', JSON.stringify(ui)); } catch (e) { /* ignore */ } };
 
@@ -111,7 +115,9 @@
     return `<select name="${name}" id="f_${name}" ${attrs}><option value="">${esc(blank)}</option>${pairs.map(([v, l]) => `<option value="${esc(v)}"${v === val ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   }
 
-  const vendorPairs = () => [...state.vendors].sort((a, b) => a.company.localeCompare(b.company)).map(v => [v.id, v.company + (v.trade ? ' – ' + v.trade : '')]);
+  const isInternal = v => (v.kind || '').startsWith('Internal');
+  const vendorPairs = () => [...state.vendors].sort((a, b) => isInternal(b) - isInternal(a) || a.company.localeCompare(b.company))
+    .map(v => [v.id, (isInternal(v) ? '👷 ' : '') + v.company + (v.trade ? ' – ' + v.trade : '')]);
   const locationPairs = () => sortedLocations().map(l => [l.id, l.name]);
   const categoryPairs = () => S.CATEGORIES.map(c => [c.id, `${c.icon} ${c.label}`]);
   function assetPairs(locId, cat) {
@@ -316,6 +322,7 @@
         state.assets = state.assets.filter(a => a.locationId !== id);
         state.workorders = state.workorders.filter(w => w.locationId !== id);
         state.pm = state.pm.filter(p => p.locationId !== id);
+        state.visits = state.visits.filter(v => v.locationId !== id);
         state.docs.filter(d => d.locationId === id).forEach(d => deleteDoc(d.id));
         remove('locations', id);
         location.hash = '#/locations';
@@ -339,12 +346,16 @@
     const wos = state.workorders.filter(w => w.assetId === assetId).sort((a, b) => (b.reportedDate || '').localeCompare(a.reportedDate || ''));
     if (!wos.length) return '';
     const total = wos.reduce((s, w) => s + (+w.cost || 0), 0);
-    return `<section class="attach"><h3>Work order history <span class="muted">(${wos.length} · ${money(total) || '$0'} spent)</span></h3><ul class="file-list">${wos.map(w =>
+    const asset = byId('assets', assetId);
+    const rc = +asset.replacementCost || 0;
+    const rvr = rc && total >= rc * 0.5
+      ? `<div class="callout warn">⚖️ Repair spend is <b>${Math.round(total / rc * 100)}%</b> of replacement cost (${money(rc)}) — consider replacing.</div>` : '';
+    return rvr + `<section class="attach"><h3>Work order history <span class="muted">(${wos.length} · ${money(total) || '$0'} spent)</span></h3><ul class="file-list">${wos.map(w =>
       `<li><a href="#" data-action="edit-wo" data-id="${w.id}">${esc(w.number)} – ${esc(w.title)}</a> ${statusPill(w.status)} <span class="muted">${esc(fmtDate(w.reportedDate))}${w.cost ? ' · ' + money(w.cost) : ''}</span></li>`).join('')}</ul></section>`;
   }
 
   function editWO(id, defaults = {}) {
-    const wo = id ? byId('workorders', id) : { status: 'Open', priority: S.WO_PRIORITIES[2].label, reportedDate: today(), ...defaults };
+    const wo = id ? byId('workorders', id) : { status: 'Open', priority: S.WO_PRIORITIES[2].label, woType: 'Repair', reportedDate: today(), ...defaults };
     const extra = id ? attachmentsHtml('workorder', id, wo.locationId) + woHistoryHtml(wo) : '';
     const vendor = wo.vendorId && byId('vendors', wo.vendorId);
     const vendorBox = vendor ? `<div class="callout">📞 <b>${esc(vendor.company)}</b> ${telLink(vendor.phone)} ${vendor.emergencyPhone ? ' · After-hours: ' + telLink(vendor.emergencyPhone) : ''} ${mailLink(vendor.email)}</div>` : '';
@@ -393,10 +404,10 @@
   }
 
   function editVendor(id) {
-    const v0 = id ? byId('vendors', id) : { preferred: 'No' };
+    const v0 = id ? byId('vendors', id) : { preferred: 'No', kind: 'External vendor' };
     const extra = id ? attachmentsHtml('vendor', id, '') : '';
     openForm({
-      title: id ? 'Edit vendor' : 'Add vendor / contractor', fields: S.VENDOR_FIELDS, values: v0, extra,
+      title: id ? 'Edit team member / vendor' : 'Add team member or vendor', fields: S.VENDOR_FIELDS, values: v0, extra,
       onSave: v => { upsert('vendors', { ...v0, ...v }); toast('Vendor saved'); },
       onDelete: id ? () => remove('vendors', id) : null,
     });
@@ -490,9 +501,10 @@
       overdueWO: openWO.filter(w => w.dueDate && w.dueDate < t),
       pmOverdue: state.pm.filter(p => p.nextDue && p.nextDue < t),
       pmSoon: state.pm.filter(p => p.nextDue && p.nextDue >= t && daysUntil(p.nextDue) <= 14),
-      coi: state.vendors.filter(v => v.coiExp && daysUntil(v.coiExp) <= 30),
+      coi: state.vendors.filter(v => v.coiExp && !isInternal(v) && daysUntil(v.coiExp) <= 30),
       warranty: state.assets.filter(a => a.warrantyExp && daysUntil(a.warrantyExp) >= 0 && daysUntil(a.warrantyExp) <= 60),
       assetDue: state.assets.filter(a => [a.nextService, a.nextInspection].some(d => d && daysUntil(d) <= 14)),
+      notVisited: state.locations.filter(l => isCafe(l) && l.status !== 'Closed' && (!lastVisit(l.id) || daysUntil(lastVisit(l.id)) < -30)),
       monthSpend: state.workorders.filter(w => (w.completedDate || '').slice(0, 7) === t.slice(0, 7)).reduce((s, w) => s + (+w.cost || 0), 0),
     };
   }
@@ -508,12 +520,13 @@
       ${kpi(st.pmSoon.length, 'PM due ≤ 14 days', '#/pm', 'amber')}
       ${kpi(st.coi.length, 'Vendor COIs expiring', '#/vendors', 'amber')}
       ${kpi(st.assetDue.length, 'Asset inspections due', '#/search/', 'amber')}
+      ${kpi(st.notVisited.length, 'Cafés not visited in 30 days', '#/visits', 'amber')}
       <div class="kpi"><b>${money(st.monthSpend) || '$0'}</b><span>Repair spend this month</span></div>
     </div>`;
 
     if (!state.locations.length) {
-      return pageHead('Dashboard') + kpis + emptyState('No locations yet. Start by adding your stores, or load the Alfred starter list.',
-        `<button class="btn primary" data-action="seed">Load Alfred starter locations</button> <button class="btn" data-action="add-location">Add location</button>`);
+      return pageHead('Dashboard') + kpis + emptyState('No locations yet. Load the Alfred café list to get started.',
+        `<button class="btn primary" data-action="seed">Load Alfred café list (24 cafés + HQ + warehouse)</button> <button class="btn" data-action="add-location">Add location</button>`);
     }
 
     const rows = sortedLocations().map(l => {
@@ -523,8 +536,7 @@
       return `<tr data-href="#/loc/${l.id}/overview"><td><a href="#/loc/${l.id}/overview">${esc(l.name)}</a><div class="muted small">${esc(l.city || '')}</div></td>
         <td class="num">${wo.length || ''}</td><td class="num">${od ? `<span class="badge red">${od}</span>` : ''}</td>
         <td class="num">${pmo ? `<span class="badge red">${pmo}</span>` : ''}</td>
-        <td class="num">${state.assets.filter(a => a.locationId === l.id).length}</td>
-        <td class="num">${state.docs.filter(d => d.locationId === l.id && /plan/i.test(d.kind)).length}</td></tr>`;
+        <td class="num">${state.assets.filter(a => a.locationId === l.id).length}</td><td class="nowrap">${lastVisit(l.id) ? esc(fmtDate(lastVisit(l.id))) : '<span class="muted">—</span>'}</td></tr>`;
     }).join('');
 
     const woList = [...st.p1, ...st.overdueWO.filter(w => priId(w.priority) !== 'P1')].slice(0, 10);
@@ -535,11 +547,11 @@
       ...st.warranty.map(a => `<li>🛡️ Warranty ending – <a href="#" data-action="edit-asset" data-id="${a.id}">${esc(a.name)}</a> <span class="muted">${esc(locName(a.locationId))}</span> ${dueBadge(a.warrantyExp)}</li>`),
     ];
 
-    return pageHead('Dashboard', `<button class="btn primary" data-action="add-wo">+ Work order</button>`, new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }))
+    return pageHead('Dashboard', `<button class="btn" data-action="add-visit">📋 Site visit</button><button class="btn primary" data-action="add-wo">+ Work order</button>`, new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }))
       + kpis
       + `<div class="cols">
         <section class="card"><h2>Locations at a glance</h2><div class="table-wrap"><table class="table click">
-          <thead><tr><th>Location</th><th class="num">Open WO</th><th class="num">Overdue</th><th class="num">PM overdue</th><th class="num">Assets</th><th class="num">Plans</th></tr></thead>
+          <thead><tr><th>Location</th><th class="num">Open WO</th><th class="num">Overdue</th><th class="num">PM overdue</th><th class="num">Assets</th><th>Last visit</th></tr></thead>
           <tbody>${rows}</tbody></table></div></section>
         <div class="stack">
           <section class="card"><h2>🚨 Needs attention</h2>${woList.length ? `<ul class="list">${woList.map(w => `<li>${priPill(w.priority)} <a href="#" data-action="edit-wo" data-id="${w.id}">${esc(w.number)} ${esc(w.title)}</a> <span class="muted">${esc(locName(w.locationId))}</span> ${dueBadge(w.dueDate)}</li>`).join('')}</ul>` : '<p class="muted">No emergencies or overdue work orders. 🎉</p>'}</section>
@@ -562,7 +574,7 @@
     }).join('');
     return pageHead(`Locations <span class="count">${state.locations.length}</span>`, `<button class="btn primary" data-action="add-location">+ Add location</button>`)
       + `<div class="filters">${filterSearch('locs', 'Search locations…')}${filterSelect('locs', 'region', regions, 'All regions')}</div>`
-      + (cards ? `<div class="loc-grid">${cards}</div>` : emptyState(state.locations.length ? 'No matching locations.' : 'No locations yet.', state.locations.length ? '' : '<button class="btn primary" data-action="seed">Load Alfred starter locations</button>'));
+      + (cards ? `<div class="loc-grid">${cards}</div>` : emptyState(state.locations.length ? 'No matching locations.' : 'No locations yet.', state.locations.length ? '' : '<button class="btn primary" data-action="seed">Load Alfred café list</button>'));
   }
 
   function viewLocation(id, tab) {
@@ -576,11 +588,11 @@
     const openWO = state.workorders.filter(w => w.locationId === id && !isClosed(w)).length;
     const pmOver = state.pm.filter(p => p.locationId === id && p.nextDue && p.nextDue < today()).length;
 
-    const tabs = [['overview', '🏪 Overview'], ['wo', `🧾 Work orders${openWO ? ` (${openWO})` : ''}`], ['pm', `🗓️ PM${pmOver ? ` (${pmOver}!)` : ''}`], ['docs', '📐 Plans & docs']];
+    const tabs = [['overview', '🏪 Overview'], ['wo', `🧾 Work orders${openWO ? ` (${openWO})` : ''}`], ['pm', `🗓️ PM${pmOver ? ` (${pmOver}!)` : ''}`], ['visits', '📋 Site visits'], ['docs', '📐 Plans & docs']];
     const sysOptions = S.CATEGORIES.map(c => [c.id, `${c.icon} ${c.label} (${counts[c.id]})`]);
 
     const head = `<div class="crumbs"><a href="#/locations">Locations</a> ›</div>`
-      + pageHead(esc(l.name), `<button class="btn" data-action="edit-location" data-id="${l.id}">Edit info</button><button class="btn" data-action="print">Print</button><button class="btn primary" data-action="add-wo" data-loc="${l.id}">+ Work order</button>`,
+      + pageHead(esc(l.name), `<button class="btn" data-action="edit-location" data-id="${l.id}">Edit info</button><button class="btn" data-action="print">Print</button><button class="btn" data-action="add-visit" data-loc="${l.id}">📋 Site visit</button><button class="btn primary" data-action="add-wo" data-loc="${l.id}">+ Work order</button>`,
         [addr ? (mapUrl ? `<a href="${mapUrl}" target="_blank" rel="noopener">📍 ${esc(addr)}</a>` : esc(addr)) : '', l.phone ? '☎ ' + telLink(l.phone) : ''].filter(Boolean).join(' · '))
       + `<nav class="tabs">${tabs.map(([t, label]) => `<a href="#/loc/${id}/${t}" class="${tab === t ? 'active' : ''}">${label}</a>`).join('')}
          <label class="sys-select">Facility system: ${selectHtml('sys', sysOptions, S.catById(tab) ? tab : '', '— Choose a system —', `data-change="goto-system" data-loc="${id}"`)}</label></nav>`;
@@ -590,6 +602,7 @@
     else if (tab === 'wo') body = woSection({ loc: id }, true);
     else if (tab === 'pm') body = pmSection({ loc: id }, true);
     else if (tab === 'docs') body = docsSection({ loc: id }, true);
+    else if (tab === 'visits') body = visitsSection({ loc: id }, true);
     else if (S.catById(tab)) body = categorySection(l, S.catById(tab), assets.filter(a => a.category === tab));
     else body = emptyState('Unknown section');
     return head + body;
@@ -706,27 +719,29 @@
   function viewVendors() {
     const f = ui.vendors;
     const q = f.q.toLowerCase();
-    const list = state.vendors.filter(v => (!f.trade || v.trade === f.trade || v.trade2 === f.trade)
+    const list = state.vendors.filter(v => (!f.trade || v.trade === f.trade || v.trade2 === f.trade) && (!f.kind || (f.kind === 'internal' ? isInternal(v) : !isInternal(v)))
       && (!q || [v.company, v.contact, v.trade, v.trade2, v.phone, v.email, v.notes, v.accountNo].join(' ').toLowerCase().includes(q)))
-      .sort((a, b) => (b.preferred === 'Yes') - (a.preferred === 'Yes') || a.company.localeCompare(b.company));
+      .sort((a, b) => isInternal(b) - isInternal(a) || (b.preferred === 'Yes') - (a.preferred === 'Yes') || a.company.localeCompare(b.company));
     const trades = [...new Set(state.vendors.flatMap(v => [v.trade, v.trade2]).filter(Boolean))].sort().map(t => [t, t]);
     const cards = list.map(v => {
       const served = (v.locations || []).length;
-      const openWO = state.workorders.filter(w => w.vendorId === v.id && !isClosed(w)).length;
-      return `<article class="vendor-card">
+      const p = vendorPerf(v.id, addDays(today(), -365));
+      const openWO = p.open;
+      const perf = p.total ? `<div class="perf small">12 mo: ${p.total} WOs · ${money(p.spend) || '$0'} · avg ${fmtDays(p.avgComplete)} to complete${p.onTime != null ? ` · ${p.onTime}% on time` : ''}</div>` : '';
+      return `<article class="vendor-card${isInternal(v) ? ' internal' : ''}">
         <div class="loc-top"><h3><a href="#" data-action="edit-vendor" data-id="${v.id}">${v.preferred === 'Yes' ? '⭐ ' : ''}${esc(v.company)}</a></h3>${v.rating ? `<span class="muted small">${esc(v.rating.split(' – ')[0])}/5</span>` : ''}</div>
-        <p class="muted">${esc([v.trade, v.trade2].filter(Boolean).join(' · '))}</p>
+        <p class="muted">${isInternal(v) ? '<span class="pill blue">Alfred team</span> ' : ''}${esc([v.trade, v.trade2].filter(Boolean).join(' · '))}</p>
         <ul class="kv">
           ${v.contact ? `<li>👤 ${esc(v.contact)}</li>` : ''}${v.phone ? `<li>☎ ${telLink(v.phone)}</li>` : ''}
           ${v.emergencyPhone ? `<li>🚨 ${telLink(v.emergencyPhone)} <span class="muted">after-hours</span></li>` : ''}${v.email ? `<li>✉ ${mailLink(v.email)}</li>` : ''}
           ${v.accountNo ? `<li>🧾 Acct ${esc(v.accountNo)}</li>` : ''}${v.responseTime ? `<li>⏱ ${esc(v.responseTime)} response</li>` : ''}
         </ul>
-        <div class="loc-meta">${v.coiExp ? `<span>COI ${dueBadge(v.coiExp)}</span>` : '<span class="badge amber">No COI on file</span>'}<span>${served ? served + ' locations' : 'All / unassigned'}</span>${openWO ? `<span>${openWO} open WO</span>` : ''}</div>
+        ${perf}<div class="loc-meta">${isInternal(v) ? '' : v.coiExp ? `<span>COI ${dueBadge(v.coiExp)}</span>` : '<span class="badge amber">No COI on file</span>'}<span>${served ? served + ' locations' : 'All / unassigned'}</span>${openWO ? `<span>${openWO} open WO</span>` : ''}</div>
       </article>`;
     }).join('');
-    return pageHead(`Vendor & contractor directory <span class="count">${state.vendors.length}</span>`, `<button class="btn" data-action="export-csv" data-what="vendors">Export CSV</button><button class="btn primary" data-action="add-vendor">+ Add vendor</button>`)
-      + `<div class="filters">${filterSearch('vendors', 'Search company, contact, phone…')}${filterSelect('vendors', 'trade', trades, 'All trades')}</div>`
-      + (cards ? `<div class="loc-grid">${cards}</div>` : emptyState('No vendors yet. Add your HVAC, plumbing, espresso tech, fire protection, and other contractors.', '<button class="btn primary" data-action="add-vendor">+ Add vendor</button>'));
+    return pageHead(`Team & vendors <span class="count">${state.vendors.length}</span>`, `<button class="btn" data-action="export-csv" data-what="vendors">Export CSV</button><button class="btn primary" data-action="add-vendor">+ Add team member / vendor</button>`)
+      + `<div class="filters">${filterSearch('vendors', 'Search company, contact, phone…')}${filterSelect('vendors', 'kind', [['internal', 'Alfred team'], ['external', 'External vendors']], 'Team + vendors')}${filterSelect('vendors', 'trade', trades, 'All trades')}</div>`
+      + (cards ? `<div class="loc-grid">${cards}</div>` : emptyState('No one here yet. Add your internal facilities team and beverage equipment tech (so you can assign them work orders), plus HVAC, plumbing, electrical, fire protection, cleaning, signage and other vendors.', '<button class="btn primary" data-action="add-vendor">+ Add team member / vendor</button>'));
   }
 
   // --- documents ---
@@ -782,7 +797,7 @@
 
   // --- settings / data ---
   function viewSettings() {
-    const counts = ['locations', 'assets', 'workorders', 'pm', 'vendors', 'docs'].map(k => `<li><b>${state[k].length}</b> ${k === 'pm' ? 'PM tasks' : k === 'workorders' ? 'work orders' : k}</li>`).join('');
+    const counts = ['locations', 'assets', 'workorders', 'pm', 'vendors', 'visits', 'docs'].map(k => `<li><b>${state[k].length}</b> ${k === 'pm' ? 'PM tasks' : k === 'workorders' ? 'work orders' : k}</li>`).join('');
     return pageHead('Settings & data') + `<div class="cols">
       <div class="stack">
       <section class="card"><h2>Backup & transfer</h2>
@@ -792,7 +807,7 @@
         <div class="btn-row"><button class="btn primary" data-action="export-json" data-files="1">⬇ Full backup (with files)</button><button class="btn" data-action="export-json">⬇ Backup (data only)</button>
         <label class="btn">⬆ Restore backup<input type="file" accept=".json,application/json" hidden data-change="import-json"></label></div>
         <h3>Spreadsheet exports (CSV)</h3>
-        <div class="btn-row">${['locations', 'assets', 'workorders', 'pm', 'vendors'].map(w => `<button class="btn sm" data-action="export-csv" data-what="${w}">${w}</button>`).join('')}</div>
+        <div class="btn-row">${['locations', 'assets', 'workorders', 'pm', 'vendors', 'visits'].map(w => `<button class="btn sm" data-action="export-csv" data-what="${w}">${w}</button>`).join('')}</div>
       </section>
       <section class="card"><h2>Install & offline</h2>
         <p>Status: <b id="net-status-2">${navigator.onLine ? 'Online' : 'Offline'}</b> · Offline cache: <b>${'serviceWorker' in navigator && navigator.serviceWorker.controller ? 'active' : location.protocol === 'file:' ? 'n/a (opened as a file — still works offline)' : 'not yet active (reload once)'}</b></p>
@@ -803,11 +818,218 @@
       <section class="card"><h2>Appearance</h2>
         ${selectHtml('theme', [['light', 'Light'], ['dark', 'Dark']], ui.theme, 'Match system', 'data-change="theme"')}</section>
       <section class="card"><h2>Starter data</h2>
-        <p class="muted small">Adds a starter list of Alfred location names (addresses blank — verify against locations.alfred.la). Existing names are skipped.</p>
-        <button class="btn" data-action="seed">Load Alfred starter locations</button>
+        <p class="muted small">Adds Alfred's 24 California cafés (from locations.alfred.la) plus HQ (Van Nuys) and Warehouse. Existing locations are kept; blank address / phone fields are filled in.</p>
+        <button class="btn" data-action="seed">Load / update Alfred café list</button>
         <button class="btn" data-action="apply-pm">Apply standard PM program…</button></section>
       <section class="card danger-zone"><h2>Danger zone</h2><p class="muted small">Erase everything stored by this app on this device.</p><button class="btn danger" data-action="reset">Erase all data</button></section>
       </div></div>`;
+  }
+
+  // --- shared: work-order creation & metrics ---
+  function createWO(rec) {
+    const p = S.WO_PRIORITIES.find(x => x.label === rec.priority) || S.WO_PRIORITIES[2];
+    return upsert('workorders', {
+      status: 'Open', woType: 'Repair', reportedDate: today(), ...rec, priority: p.label,
+      dueDate: rec.dueDate || addDays(rec.reportedDate || today(), Math.floor(p.hours / 24)),
+      number: 'WO-' + String(state.seq.wo++).padStart(4, '0'),
+      history: [{ at: new Date().toISOString(), text: rec.historyText || 'Created' }],
+    });
+  }
+
+  const daysBetween = (a, b) => Math.max(0, Math.round((parseD(b) - parseD(a)) / 86400000));
+  const avg = arr => arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length : null;
+  const fmtDays = n => n == null ? '—' : n < 1 ? '< 1 d' : n.toFixed(1) + ' d';
+
+  function vendorPerf(vendorId, since) {
+    const wos = state.workorders.filter(w => w.vendorId === vendorId && (!since || (w.reportedDate || '') >= since));
+    const done = wos.filter(w => w.completedDate && w.reportedDate && S.WO_CLOSED.slice(0, 2).includes(w.status));
+    const withDue = done.filter(w => w.dueDate);
+    return {
+      total: wos.length, open: wos.filter(w => !isClosed(w)).length, completed: done.length,
+      avgResponse: avg(wos.filter(w => w.arrivedDate && w.reportedDate).map(w => daysBetween(w.reportedDate, w.arrivedDate))),
+      avgComplete: avg(done.map(w => daysBetween(w.reportedDate, w.completedDate))),
+      onTime: withDue.length ? Math.round(withDue.filter(w => w.completedDate <= w.dueDate).length / withDue.length * 100) : null,
+      spend: wos.reduce((t, w) => t + (+w.cost || 0), 0),
+    };
+  }
+
+  // --- site visits ---
+  const isCafe = l => !/Headquarters|Warehouse/.test(l.format || '');
+  const lastVisit = locId => state.visits.filter(v => v.locationId === locId).map(v => v.date).sort().pop() || '';
+  function visitScore(v) {
+    const scored = (v.items || []).filter(i => ['pass', 'attn', 'fail'].includes(i.result));
+    return scored.length ? Math.round(scored.filter(i => i.result === 'pass').length / scored.length * 100) : null;
+  }
+  const scoreBadge = n => n == null ? '<span class="muted">—</span>' : `<span class="badge ${n >= 90 ? 'green' : n >= 75 ? 'amber' : 'red'}">${n}%</span>`;
+
+  function editVisit(id, defaults = {}) {
+    const v = id ? byId('visits', id) : { date: today(), items: [], ...defaults };
+    const prev = Object.fromEntries((v.items || []).map(i => [i.key, i]));
+    const head = [
+      { k: 'locationId', label: 'Location', type: 'location', required: true },
+      { k: 'date', label: 'Visit date', type: 'date', required: true },
+      { k: 'by', label: 'Visited by', type: 'text' },
+      { k: 'mod', label: 'Manager on duty', type: 'text' },
+      { k: 'cleanliness', label: 'Cleanliness rating', type: 'select', options: ['5 – Excellent', '4 – Good', '3 – Acceptable', '2 – Below standard', '1 – Unacceptable'] },
+    ];
+    let lastArea = '';
+    const rows = S.VISIT_CHECKLIST.map(([area, label], i) => {
+      const key = 'c' + i, r = prev[key] || {};
+      const areaRow = area !== lastArea ? `<tr class="area-row"><th colspan="3">${esc(area)}</th></tr>` : '';
+      lastArea = area;
+      const opt = (val, txt, cls, title) => `<label class="seg ${cls}" title="${title}"><input type="radio" name="${key}" value="${val}"${r.result === val ? ' checked' : ''}><span>${txt}</span></label>`;
+      return areaRow + `<tr><td>${esc(label)}</td><td class="nowrap">${opt('pass', '✓', 'ok', 'Good')}${opt('attn', '!', 'attn', 'Needs attention')}${opt('fail', '✗', 'bad', 'Failed / broken')}${opt('na', 'N/A', 'na', 'Not applicable')}</td>
+        <td><input name="n_${key}" value="${esc(r.note || '')}" placeholder="Note"></td></tr>`;
+    }).join('');
+    const html = `<form id="modal-form" novalidate>
+      <div class="form-grid">${head.map(f => fieldHtml(f, v[f.k], {}, v)).join('')}</div>
+      <div class="btn-row" style="margin:14px 0 6px"><button type="button" class="btn sm" data-visit="allpass">Mark all unanswered ✓</button><span class="muted small">✓ good · ! needs attention · ✗ failed</span></div>
+      <div class="table-wrap"><table class="table checklist">${rows}</table></div>
+      <label class="field full" style="margin-top:12px"><span>Visit notes</span><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></label>
+      <label class="check" style="margin-top:10px"><input type="checkbox" name="makeWO" checked> Create work orders for ✗ (P2) and ! (P3) items that don't have one yet</label>
+      <p class="form-error" hidden></p>
+      <div class="modal-actions">${id ? '<button type="button" class="btn danger" data-visit="delete">Delete</button>' : ''}<span class="spacer"></span>
+        <button type="button" class="btn" data-action="close-modal">Cancel</button><button type="submit" class="btn primary">Save visit</button></div></form>`;
+    const d = openModal(id ? 'Site visit' : 'New site visit', html, true);
+    const form = $('#modal-form', d);
+    form.addEventListener('click', e => {
+      const b = e.target.closest('[data-visit]');
+      if (!b) return;
+      if (b.dataset.visit === 'allpass') S.VISIT_CHECKLIST.forEach((_, i) => { if (!$(`input[name=c${i}]:checked`, form)) $(`input[name=c${i}][value=pass]`, form).checked = true; });
+      if (b.dataset.visit === 'delete' && confirm('Delete this visit? Work orders it created are kept.')) { remove('visits', id); closeModal(); render(); }
+    });
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const err = $('.form-error', form);
+      const hv = collect(form, head);
+      if (!hv.locationId || !hv.date) { err.hidden = false; err.textContent = 'Location and date are required.'; return; }
+      const items = S.VISIT_CHECKLIST.map(([area, label, cat], i) => {
+        const key = 'c' + i, r = $(`input[name=${key}]:checked`, form);
+        return { key, area, label, cat, result: r ? r.value : '', note: form.elements['n_' + key].value.trim(), woId: (prev[key] || {}).woId || '' };
+      });
+      let made = 0;
+      if (form.elements.makeWO.checked) {
+        for (const it of items) {
+          if (!['fail', 'attn'].includes(it.result) || (it.woId && byId('workorders', it.woId))) continue;
+          const wo = createWO({
+            title: it.label + (it.note ? ' – ' + it.note : ''), locationId: hv.locationId, category: it.cat, reportedBy: hv.by, reportedDate: hv.date,
+            priority: S.WO_PRIORITIES[it.result === 'fail' ? 1 : 2].label, description: `From site visit ${fmtDate(hv.date)} (${it.area}).${it.note ? '\n' + it.note : ''}`,
+            historyText: 'Created from site visit',
+          });
+          it.woId = wo.id;
+          made++;
+        }
+      }
+      upsert('visits', { ...v, ...hv, notes: form.elements.notes.value.trim(), items });
+      closeModal();
+      toast(`Visit saved${made ? ` · ${made} work order(s) created` : ''}`);
+      render();
+    });
+  }
+
+  function visitsSection(fixed = {}, inLocation = false) {
+    const f = { ...ui.visits, ...fixed };
+    const list = state.visits.filter(v => !f.loc || v.locationId === f.loc).sort((a, b) => b.date.localeCompare(a.date));
+    const rows = list.map(v => {
+      const issues = (v.items || []).filter(i => ['fail', 'attn'].includes(i.result));
+      return `<tr><td class="nowrap"><a href="#" data-action="edit-visit" data-id="${v.id}">${esc(fmtDate(v.date))}</a></td>${inLocation ? '' : `<td>${esc(locName(v.locationId))}</td>`}
+        <td>${esc(v.by || '')}</td><td>${scoreBadge(visitScore(v))}</td><td>${esc((v.cleanliness || '').split(' – ')[0] ? v.cleanliness : '')}</td>
+        <td>${issues.length ? issues.slice(0, 4).map(i => `<div class="small">${i.result === 'fail' ? '✗' : '!'} ${esc(i.label)}${i.woId && byId('workorders', i.woId) ? ` <a href="#" data-action="edit-wo" data-id="${i.woId}">${esc(byId('workorders', i.woId).number)}</a>` : ''}</div>`).join('') + (issues.length > 4 ? `<div class="muted small">+${issues.length - 4} more</div>` : '') : '<span class="muted">None</span>'}</td></tr>`;
+    }).join('');
+    return `<div class="filters">${inLocation ? '' : filterSelect('visits', 'loc', locationPairs(), 'All locations')}
+      <button class="btn primary" data-action="add-visit" ${fixed.loc ? `data-loc="${fixed.loc}"` : ''}>+ Start site visit</button></div>
+      ${rows ? `<div class="table-wrap"><table class="table"><thead><tr><th>Date</th>${inLocation ? '' : '<th>Location</th>'}<th>By</th><th>Score</th><th>Cleanliness</th><th>Issues found</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        : emptyState('No site visits logged yet. Walk the café with the checklist — anything marked ✗ or ! becomes a work order automatically.')}`;
+  }
+
+  function viewVisits() {
+    const cov = sortedLocations().filter(isCafe).map(l => ({ l, d: lastVisit(l.id) })).sort((a, b) => (a.d || '').localeCompare(b.d || ''));
+    const covRows = cov.map(({ l, d }) => `<tr><td><a href="#/loc/${l.id}/visits">${esc(l.name)}</a><div class="muted small">${esc(l.region || '')}</div></td>
+      <td>${d ? esc(fmtDate(d)) : '<span class="muted">Never</span>'}</td><td>${!d ? '<span class="badge red">Never</span>' : daysUntil(d) < -30 ? `<span class="badge red">${-daysUntil(d)}d ago</span>` : `<span class="badge">${-daysUntil(d)}d ago</span>`}</td>
+      <td class="row-actions"><button class="btn sm" data-action="add-visit" data-loc="${l.id}">Visit</button></td></tr>`).join('');
+    return pageHead('Site visits', `<button class="btn" data-action="export-csv" data-what="visits">Export CSV</button>`, 'Walkthrough checklist for proactive maintenance & cleanliness. Longest-unvisited cafés are listed first.')
+      + `<div class="cols"><section class="card"><h2>Visit log</h2>${visitsSection()}</section>
+        <section class="card"><h2>Visit coverage</h2>${covRows ? `<div class="table-wrap"><table class="table"><thead><tr><th>Café</th><th>Last visit</th><th></th><th></th></tr></thead><tbody>${covRows}</tbody></table></div>` : emptyState('No cafés yet.')}</section></div>`;
+  }
+
+  // --- reports ---
+  function rangeStart(r) {
+    const t = today();
+    if (r === 'ytd') return t.slice(0, 4) + '-01-01';
+    if (r === 'all') return '';
+    return addDays(t, -(+r || 90));
+  }
+
+  function viewReports() {
+    const r = ui.reports.range;
+    const since = rangeStart(r);
+    const ytd = today().slice(0, 4) + '-01-01';
+    const woDate = w => w.completedDate || w.reportedDate || '';
+    const inRange = state.workorders.filter(w => !since || woDate(w) >= since);
+    const sum = arr => arr.reduce((t, w) => t + (+w.cost || 0), 0);
+    const totalSpend = sum(inRange);
+    const pct = (n, d) => d ? Math.round(n / d * 100) + '%' : '—';
+    const table = (headCols, rows, empty) => rows.length ? `<div class="table-wrap"><table class="table"><thead><tr>${headCols.map(h => `<th${h.startsWith('#') ? ' class="num"' : ''}>${esc(h.replace(/^#/, ''))}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : `<p class="muted">${empty}</p>`;
+
+    const locRows = sortedLocations().map(l => {
+      const w = inRange.filter(x => x.locationId === l.id);
+      const ytdSpend = sum(state.workorders.filter(x => x.locationId === l.id && woDate(x) >= ytd));
+      const b = +l.annualBudget || 0;
+      return { l, n: w.length, spend: sum(w), ytdSpend, b };
+    }).filter(x => x.n || x.b).sort((a, b) => b.spend - a.spend)
+      .map(x => `<tr><td><a href="#/loc/${x.l.id}/wo">${esc(x.l.name)}</a></td><td class="num">${x.n}</td><td class="num">${money(x.spend) || '$0'}</td><td class="num">${money(x.ytdSpend) || '$0'}</td><td class="num">${x.b ? money(x.b) : '<span class="muted">set in location</span>'}</td>
+        <td class="num">${x.b ? `<span class="badge ${x.ytdSpend > x.b ? 'red' : x.ytdSpend > x.b * 0.8 ? 'amber' : ''}">${pct(x.ytdSpend, x.b)}</span>` : ''}</td></tr>`);
+
+    const catRows = S.CATEGORIES.map(c => ({ c, w: inRange.filter(x => x.category === c.id) })).filter(x => x.w.length).sort((a, b) => sum(b.w) - sum(a.w))
+      .map(({ c, w }) => `<tr><td>${c.icon} ${esc(c.label)}</td><td class="num">${w.length}</td><td class="num">${money(sum(w)) || '$0'}</td><td class="num">${pct(sum(w), totalSpend)}</td></tr>`);
+
+    const typeRows = S.WO_TYPES.map(t => ({ t, w: inRange.filter(x => (x.woType || 'Repair') === t) })).filter(x => x.w.length)
+      .map(({ t, w }) => `<tr><td>${esc(t)}</td><td class="num">${w.length}</td><td class="num">${money(sum(w)) || '$0'}</td></tr>`);
+
+    const vRows = state.vendors.map(v => ({ v, p: vendorPerf(v.id, since) })).filter(x => x.p.total).sort((a, b) => b.p.spend - a.p.spend)
+      .map(({ v, p }) => `<tr><td><a href="#" data-action="edit-vendor" data-id="${v.id}">${isInternal(v) ? '👷 ' : ''}${esc(v.company)}</a><div class="muted small">${esc(v.trade || '')}</div></td>
+        <td class="num">${p.total}</td><td class="num">${p.open}</td><td class="num">${fmtDays(p.avgResponse)}</td><td class="num">${fmtDays(p.avgComplete)}</td>
+        <td class="num">${p.onTime == null ? '—' : `<span class="badge ${p.onTime >= 90 ? 'green' : p.onTime >= 70 ? 'amber' : 'red'}">${p.onTime}%</span>`}</td><td class="num">${money(p.spend) || '$0'}</td></tr>`);
+
+    const byAsset = {};
+    inRange.filter(w => w.assetId).forEach(w => { (byAsset[w.assetId] = byAsset[w.assetId] || []).push(w); });
+    const recurAssets = Object.entries(byAsset).filter(([, w]) => w.length >= 3).sort((a, b) => b[1].length - a[1].length)
+      .map(([id, w]) => `<tr><td><a href="#" data-action="edit-asset" data-id="${id}">${esc(assetName(id))}</a></td><td>${esc(locName((byId('assets', id) || {}).locationId))}</td><td class="num">${w.length}</td><td class="num">${money(sum(w)) || '$0'}</td></tr>`);
+    const byLocCat = {};
+    inRange.filter(w => w.category).forEach(w => { const k = w.locationId + '|' + w.category; (byLocCat[k] = byLocCat[k] || []).push(w); });
+    const recurLoc = Object.entries(byLocCat).filter(([, w]) => w.length >= 3).sort((a, b) => b[1].length - a[1].length)
+      .map(([k, w]) => { const [lid, cat] = k.split('|'); return `<tr><td>${esc(locName(lid))}</td><td>${esc(catLabel(cat))}</td><td class="num">${w.length}</td><td class="num">${money(sum(w)) || '$0'}</td></tr>`; });
+
+    const rvr = state.assets.map(a => {
+      const spent = sum(state.workorders.filter(w => w.assetId === a.id));
+      const rc = +a.replacementCost || 0;
+      const age = a.installDate ? (daysBetween(a.installDate, today()) / 365) : null;
+      return { a, spent, rc, ratio: rc ? spent / rc : 0, age };
+    }).filter(x => x.ratio >= 0.5 || ['Poor', 'Failed'].includes(x.a.condition) || x.a.status === 'Out of service')
+      .sort((a, b) => b.ratio - a.ratio)
+      .map(x => `<tr><td><a href="#" data-action="edit-asset" data-id="${x.a.id}">${esc(x.a.name)}</a><div class="muted small">${esc([x.a.make, x.a.model].filter(Boolean).join(' '))}</div></td><td>${esc(locName(x.a.locationId))}</td>
+        <td>${esc(x.a.condition || '')}</td><td class="num">${x.age == null ? '—' : x.age.toFixed(1) + ' yr'}</td><td class="num">${money(x.spent) || '$0'}</td><td class="num">${x.rc ? money(x.rc) : '—'}</td>
+        <td class="num">${x.rc ? `<span class="badge ${x.ratio >= 0.5 ? 'red' : ''}">${Math.round(x.ratio * 100)}%</span>` : ''}</td></tr>`);
+
+    const ranges = [['30', 'Last 30 days'], ['90', 'Last 90 days'], ['365', 'Last 12 months'], ['ytd', 'Year to date'], ['all', 'All time']];
+    return pageHead('Reports', '', 'Spend, budgets, vendor performance, recurring issues, and repair-vs-replace — for Operations & Finance.')
+      + `<div class="filters">${selectHtml('flt_reports_range', ranges, r, 'Range', 'data-change="filter" data-group="reports" data-key="range"')}<button class="btn" data-action="print">Print / PDF</button></div>
+      <div class="kpis"><div class="kpi"><b>${inRange.length}</b><span>Work orders</span></div><div class="kpi"><b>${money(totalSpend) || '$0'}</b><span>Total spend</span></div>
+        <div class="kpi"><b>${fmtDays(avg(inRange.filter(w => w.completedDate && w.reportedDate).map(w => daysBetween(w.reportedDate, w.completedDate))))}</b><span>Avg days to complete</span></div>
+        <div class="kpi"><b>${inRange.filter(w => priId(w.priority) === 'P1').length}</b><span>Emergencies (P1)</span></div></div>
+      <div class="cols">
+        <section class="card"><h2>Spend by location vs. budget</h2>${table(['Location', '#WOs', '#Spend (range)', '#YTD spend', '#Annual budget', '#YTD used'], locRows, 'No costs recorded in this range.')}</section>
+        <div class="stack"><section class="card"><h2>Spend by system</h2>${table(['System', '#WOs', '#Spend', '#Share'], catRows, 'No work orders in this range.')}</section>
+          <section class="card"><h2>By work type</h2>${table(['Type', '#WOs', '#Spend'], typeRows, 'No work orders in this range.')}</section></div>
+      </div>
+      <section class="card"><h2>Team & vendor performance</h2><p class="muted small">Response = reported → tech on site. Completion = reported → completed. On-time = completed by due date.</p>
+        ${table(['Team / vendor', '#WOs', '#Open', '#Avg response', '#Avg completion', '#On-time', '#Spend'], vRows, 'Assign work orders to team members / vendors to see performance.')}</section>
+      <div class="cols">
+        <section class="card"><h2>Recurring issues – assets (3+ WOs)</h2>${table(['Asset', 'Location', '#WOs', '#Spend'], recurAssets, 'No asset has 3+ work orders in this range.')}</section>
+        <section class="card"><h2>Recurring issues – location × system</h2>${table(['Location', 'System', '#WOs', '#Spend'], recurLoc, 'No location/system has 3+ work orders in this range.')}</section>
+      </div>
+      <section class="card"><h2>⚖️ Repair vs. replace candidates</h2><p class="muted small">Assets whose lifetime repair spend is ≥ 50% of replacement cost, or rated Poor / Failed / Out of service. Add a replacement cost on each asset to enable this.</p>
+        ${table(['Asset', 'Location', 'Condition', '#Age', '#Repair spend', '#Replacement', '#Ratio'], rvr, 'No candidates right now.')}</section>`;
   }
 
   // ---------- export / import ----------
@@ -864,6 +1086,10 @@
     else if (what === 'vendors') cols = [...fieldCols(S.VENDOR_FIELDS), [r => (r.locations || []).map(locName), 'Locations served']];
     else if (what === 'workorders') cols = [['number', 'WO #'], [L, 'Location'], [r => catLabel(r.category), 'System'], [r => assetName(r.assetId), 'Asset'], [r => vendorName(r.vendorId), 'Vendor'], ...fieldCols(S.WO_FIELDS)];
     else if (what === 'pm') cols = [[L, 'Location'], [r => catLabel(r.category), 'System'], [r => assetName(r.assetId), 'Asset'], [r => vendorName(r.vendorId), 'Vendor'], ...fieldCols(S.PM_FIELDS)];
+    else if (what === 'visits') {
+      cols = [['date', 'Date'], [L, 'Location'], ['by', 'Visited by'], ['mod', 'Manager on duty'], [r => visitScore(r), 'Score %'], ['cleanliness', 'Cleanliness'],
+        [r => (r.items || []).filter(i => ['fail', 'attn'].includes(i.result)).map(i => `${i.result === 'fail' ? 'FAIL' : 'ATTN'}: ${i.label}${i.note ? ' (' + i.note + ')' : ''}`), 'Issues'], ['notes', 'Notes']];
+    }
     else if (what === 'assets') {
       const keys = new Map();
       S.CATEGORIES.forEach(c => S.fieldsFor(c).forEach(f => { if (f.type !== 'vendor' && !keys.has(f.k)) keys.set(f.k, f.label); }));
@@ -873,14 +1099,31 @@
   }
 
   function seedLocations() {
-    const names = new Set(state.locations.map(l => l.name));
-    let n = 0;
-    for (const [name, city, region] of S.SEED_LOCATIONS) {
-      if (names.has(name)) continue;
-      upsert('locations', { name, city, region, status: 'Open', notes: 'Starter entry – verify name and add address from locations.alfred.la' });
-      n++;
+    let added = 0, updated = 0, removed = 0;
+    const realNames = new Set(S.SEED_LOCATIONS.map(r => r[0]));
+    const isStarter = l => /^Starter entry/.test(l.notes || '');
+    const hasRecords = id => ['assets', 'workorders', 'pm', 'docs', 'visits'].some(c => state[c].some(r => r.locationId === id));
+    // Upgrade entries from the earlier guessed starter list.
+    for (const l of [...state.locations]) {
+      if (!isStarter(l)) continue;
+      const real = S.SEED_ALIASES[l.name] || l.name.replace(/^Alfred – /, '');
+      if (realNames.has(real) && !state.locations.some(o => o !== l && o.name === real)) { l.name = real; l.notes = ''; }
+      else if (!hasRecords(l.id)) { state.locations = state.locations.filter(o => o !== l); removed++; }
     }
-    toast(n ? `Added ${n} starter locations — edit each to add address & details` : 'Starter locations already loaded');
+    for (const [name, storeNo, address, city, zip, phone, region, format] of S.SEED_LOCATIONS) {
+      const data = { storeNo, address, city, zip, phone, region, format: format || 'Café' };
+      const existing = state.locations.find(l => l.name === name);
+      if (existing) {
+        let changed = false;
+        for (const [k, v] of Object.entries(data)) if (v && !existing[k]) { existing[k] = v; changed = true; }
+        if (changed) updated++;
+        continue;
+      }
+      upsert('locations', { name, status: 'Open', ...data });
+      added++;
+    }
+    save();
+    toast(`Alfred locations: ${added} added, ${updated} filled in${removed ? `, ${removed} old placeholders removed` : ''}`, 4000);
     render();
   }
 
@@ -900,7 +1143,7 @@
     const views = {
       dashboard: () => viewDashboard(), locations: () => viewLocations(), loc: () => viewLocation(r.args[0], r.args[1]),
       wo: () => viewWO(), pm: () => viewPM(), vendors: () => viewVendors(), docs: () => viewDocs(),
-      search: () => viewSearch(r.args.join('/')), settings: () => viewSettings(),
+      search: () => viewSearch(r.args.join('/')), settings: () => viewSettings(), visits: () => viewVisits(), reports: () => viewReports(),
     };
     const html = (views[r.name] || views.dashboard)();
     $('#main').innerHTML = html;
@@ -937,9 +1180,11 @@
     'pm-done': el => pmDone(el.dataset.id),
     'pm-wo': el => {
       const p = byId('pm', el.dataset.id);
-      editWO(null, { title: p.title, locationId: p.locationId, category: p.category, assetId: p.assetId, vendorId: p.vendorId, priority: S.WO_PRIORITIES[3].label, description: p.procedure, dueDate: p.nextDue });
+      editWO(null, { woType: 'Preventive maintenance', title: p.title, locationId: p.locationId, category: p.category, assetId: p.assetId, vendorId: p.vendorId, priority: S.WO_PRIORITIES[3].label, description: p.procedure, dueDate: p.nextDue });
     },
     'apply-pm': el => applyPmTemplate(el.dataset.loc),
+    'add-visit': el => editVisit(null, { locationId: el.dataset.loc || '' }),
+    'edit-visit': el => editVisit(el.dataset.id),
     'add-vendor': () => editVendor(),
     'edit-vendor': el => editVendor(el.dataset.id),
     'upload-doc': el => uploadDocs({ locationId: el.dataset.loc || ui.docs.loc || '' }),

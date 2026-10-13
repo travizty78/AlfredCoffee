@@ -24,6 +24,7 @@
     { k: 'vendorId', label: 'Service vendor', type: 'vendor' },
     { k: 'installDate', label: 'Install date', type: 'date' },
     { k: 'warrantyExp', label: 'Warranty expires', type: 'date' },
+    { k: 'replacementCost', label: 'Replacement cost ($)', type: 'number', placeholder: 'For repair vs. replace' },
     { k: 'lastService', label: 'Last service', type: 'date' },
     { k: 'nextService', label: 'Next service due', type: 'date' },
     { k: 'notes', label: 'Notes', type: 'textarea', full: true },
@@ -248,6 +249,31 @@
       ],
     },
     {
+      id: 'signage', label: 'Signage & Graphics', icon: '🪧',
+      types: ['Exterior channel letters', 'Blade / projecting sign', 'Window graphics / vinyl', 'Menu board', 'Digital menu screen', 'Neon / LED sign', 'Wayfinding / ADA sign', 'Mural', 'Temporary / promo signage', 'Other'],
+      brands: [],
+      fields: [
+        { k: 'dimensions', label: 'Dimensions', type: 'text' },
+        { k: 'illuminated', label: 'Illuminated', type: 'select', options: ['Yes – LED', 'Yes – neon', 'Yes – fluorescent', 'No'] },
+        { k: 'timer', label: 'Timer / photocell / circuit', type: 'text' },
+        { k: 'permit', label: 'Sign permit #', type: 'text' },
+        { k: 'fabricator', label: 'Fabricator / installer', type: 'text' },
+        { k: 'artworkFile', label: 'Artwork file / version', type: 'text' },
+        { k: 'installedDate', label: 'Installed', type: 'date' },
+      ],
+    },
+    {
+      id: 'cleaning', label: 'Cleaning & Janitorial', icon: '🧽',
+      types: ['Janitorial service contract', 'Floor care (strip / wax / scrub)', 'Window cleaning contract', 'Hood / duct cleaning', 'Pressure washing', 'Carpet / upholstery', 'Mat service', 'Chemical dispenser', 'Other'],
+      brands: ['Ecolab', 'Cintas', 'Aramark', 'ABM', 'Jani-King', 'Coverall'],
+      fields: [
+        { k: 'frequency', label: 'Service frequency', type: 'select', options: ['Nightly', '3x / week', 'Weekly', 'Bi-weekly', 'Monthly', 'Quarterly', 'As needed'] },
+        { k: 'scope', label: 'Scope of work / standards', type: 'textarea', full: true },
+        { k: 'monthlyCost', label: 'Monthly cost ($)', type: 'number' },
+        { k: 'lastAudit', label: 'Last cleanliness audit', type: 'date' },
+      ],
+    },
+    {
       id: 'roof', label: 'Roof & Exterior', icon: '🏠',
       types: ['Roof membrane', 'Roof drain', 'Gutter / downspout', 'Awning', 'Exterior signage', 'Blade sign', 'Facade', 'Parking lot / striping', 'Landscaping / planter', 'Trash enclosure', 'Other'],
       brands: [],
@@ -288,8 +314,8 @@
   const LOCATION_FIELDS = [
     { k: 'name', label: 'Location name', type: 'text', required: true },
     { k: 'storeNo', label: 'Store #', type: 'text' },
-    { k: 'region', label: 'Region', type: 'select', options: ['Los Angeles – Westside', 'Los Angeles – Central', 'Los Angeles – East', 'San Fernando Valley', 'South Bay', 'San Gabriel Valley', 'Orange County', 'San Diego', 'Bay Area', 'Other CA'] },
-    { k: 'status', label: 'Status', type: 'select', options: ['Open', 'Temporarily closed', 'Under construction', 'Coming soon', 'Closed'] },
+    { k: 'region', label: 'Region', type: 'select', options: ['Los Angeles – Westside', 'Los Angeles – Central', 'Los Angeles – East', 'San Fernando Valley', 'South Bay', 'San Gabriel Valley', 'Orange County', 'San Diego', 'Bay Area', 'Other CA', 'Austin, TX'] },
+    { k: 'status', label: 'Status', type: 'select', options: ['Open', 'Temporarily closed', 'Under construction', 'Coming soon', 'Renovation', 'Closed'] },
     { k: 'address', label: 'Street address', type: 'text', full: true },
     { k: 'city', label: 'City', type: 'text' },
     { k: 'zip', label: 'ZIP', type: 'text' },
@@ -302,7 +328,8 @@
     { k: 'sqft', label: 'Square footage', type: 'number' },
     { k: 'seats', label: 'Seat count', type: 'number' },
     { k: 'openDate', label: 'Open date', type: 'date' },
-    { k: 'format', label: 'Format', type: 'select', options: ['Café', 'Café + kitchen', 'Kiosk / walk-up', 'Tea room', 'Drive-thru', 'Other'] },
+    { k: 'format', label: 'Format', type: 'select', options: ['Café', 'Café + kitchen', 'Kiosk / walk-up', 'Tea room', 'Airport concession', 'Headquarters / office', 'Warehouse', 'Other'] },
+    { k: 'annualBudget', label: 'Annual R&M budget ($)', type: 'number' },
     { k: 'landlord', label: 'Landlord / property manager', type: 'text' },
     { k: 'landlordPhone', label: 'Landlord / PM phone', type: 'tel' },
     { k: 'leaseExp', label: 'Lease expiration', type: 'date' },
@@ -318,7 +345,8 @@
   const TRADES = ['General contractor', 'Handyman', 'HVAC', 'Refrigeration', 'Plumbing', 'Electrical', 'Espresso / coffee equipment', 'Ice machine', 'Water filtration', 'Fire sprinkler', 'Fire extinguisher', 'Fire alarm', 'Hood cleaning', 'Hood suppression', 'Grease trap pumping', 'Backflow testing', 'Pest control', 'Locksmith', 'Glass / glazing', 'Window cleaning', 'Flooring', 'Painting', 'Roofing', 'Millwork / carpentry', 'Furniture', 'Lighting', 'Signage', 'Security / alarm', 'IT / network / POS', 'Janitorial', 'Waste / recycling', 'Landscaping', 'Utility', 'Kitchen equipment', 'Other'];
 
   const VENDOR_FIELDS = [
-    { k: 'company', label: 'Company', type: 'text', required: true },
+    { k: 'kind', label: 'Type', type: 'select', options: ['External vendor', 'Internal facilities team', 'Internal beverage equipment tech'], required: true },
+    { k: 'company', label: 'Company / name', type: 'text', required: true },
     { k: 'trade', label: 'Primary trade', type: 'select', options: TRADES },
     { k: 'trade2', label: 'Secondary trade', type: 'select', options: TRADES },
     { k: 'contact', label: 'Contact name', type: 'text' },
@@ -350,6 +378,8 @@
   const WO_STATUSES = ['Open', 'Assigned', 'In progress', 'On hold – parts', 'On hold – vendor', 'On hold – approval', 'Completed', 'Closed', 'Cancelled'];
   const WO_CLOSED = ['Completed', 'Closed', 'Cancelled'];
 
+  const WO_TYPES = ['Repair', 'Emergency repair', 'Preventive maintenance', 'Inspection', 'Project / install', 'Signage install', 'New café opening', 'Renovation / remodel', 'Cleaning / janitorial', 'Replacement'];
+
   const WO_FIELDS = [
     { k: 'title', label: 'Problem / title', type: 'text', required: true, full: true },
     { k: 'locationId', label: 'Location', type: 'location', required: true },
@@ -357,11 +387,14 @@
     { k: 'assetId', label: 'Asset', type: 'asset' },
     { k: 'priority', label: 'Priority', type: 'select', options: WO_PRIORITIES.map(p => p.label), required: true },
     { k: 'status', label: 'Status', type: 'select', options: WO_STATUSES },
-    { k: 'vendorId', label: 'Assigned vendor', type: 'vendor' },
+    { k: 'woType', label: 'Type', type: 'select', options: WO_TYPES },
+    { k: 'vendorId', label: 'Assigned to (team / vendor)', type: 'vendor' },
+    { k: 'impact', label: 'Operational impact', type: 'select', options: ['None', 'Minor – workaround', 'Station / menu item down', 'Guest-facing (restroom, seating, HVAC)', 'Café closed'] },
     { k: 'reportedBy', label: 'Reported by', type: 'text' },
     { k: 'reportedDate', label: 'Reported date', type: 'date' },
     { k: 'dueDate', label: 'Due date', type: 'date' },
     { k: 'scheduledDate', label: 'Scheduled visit', type: 'date' },
+    { k: 'arrivedDate', label: 'Tech on site', type: 'date' },
     { k: 'completedDate', label: 'Completed date', type: 'date' },
     { k: 'vendorTicket', label: 'Vendor ticket #', type: 'text' },
     { k: 'po', label: 'PO #', type: 'text' },
@@ -427,29 +460,84 @@
     ['Floor deep clean / reseal', 'flooring', 'Annual', ''],
     ['Paint touch-ups walkthrough', 'paint', 'Quarterly', ''],
     ['Furniture & seating safety check', 'furniture', 'Monthly', 'Wobbly tables, loose chair joints, sharp edges.'],
+    ['Signage lighting & timer check', 'signage', 'Monthly', 'All letters lit, timer/photocell set for season, graphics not peeling.'],
+    ['Janitorial / cleanliness audit', 'cleaning', 'Monthly', 'Score against Alfred cleanliness standards; review with cleaning vendor.'],
+    ['Floor care – scrub / reseal', 'cleaning', 'Quarterly', ''],
   ];
 
   const DOC_KINDS = ['Floor plan', 'Life safety / evacuation plan', 'Reflected ceiling plan', 'Electrical plan / one-line', 'Plumbing plan', 'Mechanical / HVAC plan', 'As-built drawings', 'Equipment schedule', 'Permit', 'Certificate of occupancy', 'Health permit', 'Inspection report', 'Certificate of insurance (COI)', 'Warranty', 'Manual / spec sheet', 'Quote / proposal', 'Invoice', 'Photo', 'Lease / landlord doc', 'SDS', 'Other'];
 
-  // Starter list of Alfred locations (names only – addresses intentionally blank).
-  // Verify against https://locations.alfred.la/ and edit / delete as needed.
+  // Alfred California cafés from locations.alfred.la (provided Oct 2026).
+  // [name, storeNo (online-order code), address, city, zip, phone, region, format]
   const SEED_LOCATIONS = [
-    ['Alfred – Melrose Place', 'Los Angeles', 'Los Angeles – Central'],
-    ['Alfred – Silver Lake', 'Los Angeles', 'Los Angeles – East'],
-    ['Alfred – Studio City', 'Studio City', 'San Fernando Valley'],
-    ['Alfred – Brentwood', 'Los Angeles', 'Los Angeles – Westside'],
-    ['Alfred – Beverly Hills', 'Beverly Hills', 'Los Angeles – Westside'],
-    ['Alfred – Abbot Kinney', 'Venice', 'Los Angeles – Westside'],
-    ['Alfred – Manhattan Beach', 'Manhattan Beach', 'South Bay'],
-    ['Alfred – Pasadena', 'Pasadena', 'San Gabriel Valley'],
-    ['Alfred – Downtown LA', 'Los Angeles', 'Los Angeles – Central'],
-    ['Alfred – Culver City', 'Culver City', 'Los Angeles – Westside'],
+    ['Abbot Kinney', 'AK', '1653B Abbot Kinney Blvd', 'Venice', '90291', '(424) 390-7200', 'Los Angeles – Westside'],
+    ['Arts District', 'AD', '714 Traction Ave', 'Los Angeles', '90013', '(213) 770-5006', 'Los Angeles – Central'],
+    ['Beverly & Martel', 'BAM', '7386 Beverly Blvd', 'Los Angeles', '90036', '(424) 476-0004', 'Los Angeles – Central'],
+    ['Beverly Hills', 'BH', '490 N Beverly Dr', 'Beverly Hills', '90210', '(424) 346-6200', 'Los Angeles – Westside'],
+    ['Brentwood', 'BW', '11908 San Vicente Blvd', 'Los Angeles', '90049', '(310) 340-0094', 'Los Angeles – Westside'],
+    ['Burbank', 'BUR', '171 N Maple St', 'Burbank', '91505', '(818) 650-3020', 'San Fernando Valley'],
+    ['Canon Drive', 'CAN', '319 N Canon Dr', 'Beverly Hills', '90210', '(424) 544-5100', 'Los Angeles – Westside'],
+    ['Coldwater', 'CW', '12930 Ventura Blvd #122', 'Studio City', '91604', '(818) 853-9200', 'San Fernando Valley'],
+    ['Encino', 'ENC', '16911 Ventura Blvd', 'Los Angeles', '91316', '(818) 938-2002', 'San Fernando Valley'],
+    ['Highland Park', 'HP', '5815 N Figueroa St', 'Los Angeles', '90042', '(323) 458-5444', 'Los Angeles – East'],
+    ['Koreatown', 'KT', '3515 Wilshire Blvd', 'Los Angeles', '90010', '(213) 510-2700', 'Los Angeles – Central'],
+    ['LAX', 'LAX', '1 World Way, Los Angeles International Airport', 'Los Angeles', '90045', '(310) 780-8562', 'South Bay', 'Airport concession'],
+    ['Malibu', 'MA', '3835 Cross Creek Rd #7', 'Malibu', '90265', '(424) 320-5900', 'Los Angeles – Westside'],
+    ['Marina del Rey', 'MDR', '4625 Admiralty Way #107', 'Marina del Rey', '90292', '(310) 388-8040', 'Los Angeles – Westside'],
+    ['Melrose Place', 'MP', '8428 Melrose Pl', 'Los Angeles', '90069', '(323) 870-1100', 'Los Angeles – Central'],
+    ['Palisades Village', 'PV', '15217 Palisades Village Ln', 'Pacific Palisades', '90272', '(424) 364-2500', 'Los Angeles – Westside'],
+    ['Pasadena', 'PA', '55 W Colorado Blvd', 'Pasadena', '91101', '(626) 790-7020', 'San Gabriel Valley'],
+    ['Porter Ranch', 'PR', '20140 Rinaldi St Suite 130', 'Porter Ranch', '91326', '(818) 646-5396', 'San Fernando Valley'],
+    ['Robertson', 'RO', '320 S Robertson Blvd', 'Los Angeles', '90048', '(424) 300-4080', 'Los Angeles – Central'],
+    ['Sawtelle', 'SAW', '11301 W Olympic Blvd #120', 'Los Angeles', '90064', '(310) 510-6265', 'Los Angeles – Westside'],
+    ['Silverlake', 'SL', '3337 1/2 Sunset Blvd', 'Los Angeles', '90026', '(323) 870-9800', 'Los Angeles – East'],
+    ['Topanga Village', 'TV', '6316 Topanga Canyon Blvd #1100', 'Woodland Hills', '91367', '(747) 222-1200', 'San Fernando Valley'],
+    ['Ventura Place', 'VP', '12077 Ventura Pl', 'Studio City', '91604', '(818) 960-1020', 'San Fernando Valley'],
+    ['Westwood', 'WW', '1154 Westwood Blvd', 'Los Angeles', '90024', '(424) 404-1700', 'Los Angeles – Westside'],
+    ['Alfred HQ', 'HQ', '', 'Van Nuys', '', '', 'San Fernando Valley', 'Headquarters / office'],
+    ['Warehouse', 'WH', '', '', '', '', 'San Fernando Valley', 'Warehouse'],
+  ];
+  // Names used by the earlier guessed starter list → real café names.
+  const SEED_ALIASES = { 'Alfred – Silver Lake': 'Silverlake', 'Alfred – Downtown LA': 'Arts District', 'Alfred – Studio City': 'Ventura Place' };
+
+  // Site-visit walkthrough checklist: [area, item, category id for any resulting work order]
+  const VISIT_CHECKLIST = [
+    ['Exterior', 'Signage lit, clean, undamaged', 'signage'],
+    ['Exterior', 'Storefront glass & entry clean', 'glass'],
+    ['Exterior', 'Entry door, closer & hardware working', 'doors'],
+    ['Exterior', 'Patio furniture, umbrellas, heaters', 'furniture'],
+    ['Exterior', 'Trash / recycling area clean', 'utilities'],
+    ['Front of house', 'Floors clean, no damage or trip hazards', 'flooring'],
+    ['Front of house', 'Walls & paint – no scuffs / damage', 'paint'],
+    ['Front of house', 'All lights working', 'lighting'],
+    ['Front of house', 'Seating & tables stable and clean', 'furniture'],
+    ['Front of house', 'Ceiling – no stains, missing tiles', 'ceilings'],
+    ['Front of house', 'HVAC – temperature comfortable, no noise / drips', 'hvac'],
+    ['Bar', 'Espresso machine – pressure, temps, no leaks', 'coffee'],
+    ['Bar', 'Grinders & brewers working', 'coffee'],
+    ['Bar', 'Ice machine clean & producing', 'icewater'],
+    ['Bar', 'Water filters within change date', 'icewater'],
+    ['Bar', 'Refrigeration holding temp (≤ 41°F)', 'refrig'],
+    ['Bar', 'Sinks & dipper well draining, no leaks under counter', 'plumbing'],
+    ['Back of house', 'Hand sinks: hot water, soap, towels', 'plumbing'],
+    ['Back of house', 'Floor drains / floor sinks clear', 'plumbing'],
+    ['Back of house', 'Walk-in / reach-in gaskets & doors', 'refrig'],
+    ['Back of house', 'No pest activity', 'pest'],
+    ['Back of house', 'Storage tidy, 18" clear below sprinklers', 'fire'],
+    ['Restrooms', 'Toilets, sinks, faucets working', 'restroom'],
+    ['Restrooms', 'Clean, stocked, dryers / dispensers working', 'restroom'],
+    ['Restrooms', 'ADA grab bars, signage, lock', 'restroom'],
+    ['Life safety', 'Extinguishers charged, tagged, accessible', 'fire'],
+    ['Life safety', 'Exit signs & emergency lights working', 'fire'],
+    ['Life safety', 'Exits & egress paths clear', 'fire'],
+    ['Life safety', 'Electrical panels labeled, 36" clearance', 'electrical'],
+    ['Cleanliness', 'Overall cleanliness meets Alfred standard', 'cleaning'],
   ];
 
   window.SCHEMA = {
     AREAS, CONDITION, STATUS, CATEGORIES, fieldsFor, LOCATION_FIELDS, TRADES, VENDOR_FIELDS,
     WO_PRIORITIES, WO_STATUSES, WO_CLOSED, WO_FIELDS, PM_FREQS, PM_FIELDS, PM_TEMPLATE,
-    DOC_KINDS, SEED_LOCATIONS,
+    DOC_KINDS, SEED_LOCATIONS, SEED_ALIASES, VISIT_CHECKLIST, WO_TYPES,
     catById: id => CATEGORIES.find(c => c.id === id),
   };
 })();

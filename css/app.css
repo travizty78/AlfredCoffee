@@ -159,7 +159,7 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 .badge, .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600; background: var(--gray-bg); color: var(--gray); white-space: nowrap; }
 .badge.red, .pill.red { background: var(--red-bg); color: var(--red); }
 .badge.amber, .pill.amber { background: var(--amber-bg); color: var(--amber); }
-.pill.green { background: var(--green-bg); color: var(--green); }
+.badge.green, .pill.green { background: var(--green-bg); color: var(--green); }
 .pill.blue { background: var(--blue-bg); color: var(--blue); }
 .pill.pri-P1 { background: var(--red); color: #fff; }
 .pill.pri-P2 { background: var(--amber-bg); color: var(--amber); }
@@ -168,6 +168,22 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 
 .empty { text-align: center; padding: 36px 16px; color: var(--muted); border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface); }
 .empty p { margin: 0 0 12px; }
+
+/* site visit checklist */
+.checklist td { vertical-align: middle; padding: 6px 8px; }
+.checklist .area-row th { background: var(--surface-2); color: var(--text); font-size: .78rem; }
+.checklist input[name^="n_"] { padding: 5px 8px; font-size: .85rem; min-width: 120px; }
+.seg { display: inline-block; margin-right: 3px; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: inline-grid; place-items: center; min-width: 34px; height: 30px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; font-weight: 700; font-size: .85rem; color: var(--muted); }
+.seg input:focus-visible + span { outline: 2px solid var(--link); }
+.seg.ok input:checked + span { background: var(--green-bg); color: var(--green); border-color: var(--green); }
+.seg.attn input:checked + span { background: var(--amber-bg); color: var(--amber); border-color: var(--amber); }
+.seg.bad input:checked + span { background: var(--red-bg); color: var(--red); border-color: var(--red); }
+.seg.na input:checked + span { background: var(--gray-bg); color: var(--text); border-color: var(--muted); }
+.callout.warn { background: var(--amber-bg); color: var(--amber); }
+.vendor-card.internal { border-left: 3px solid var(--blue); }
+.perf { color: var(--muted); margin: -4px 0 8px; }
 
 /* documents */
 .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }

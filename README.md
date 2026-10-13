@@ -1,17 +1,19 @@
 # Alfred Facilities
 
-An offline-first facility management app for Alfred Coffee's California locations. It runs in any modern browser (Chromebook, laptop, phone, tablet). You can install it as an app, and it keeps working with no internet connection.
+An offline-first facility management app for Alfred Coffee's California cafés, HQ (Van Nuys), and warehouse. It is built around the Facilities Manager role: maintenance and repairs across 27+ cafés, the internal facilities team and beverage equipment tech, vendor accountability, preventive maintenance, signage and new-café projects, cleaning standards, and budgets and repair-vs-replace calls with Operations and Finance. It runs in any modern browser (Chromebook, laptop, phone, tablet). You can install it as an app, and it keeps working with no internet connection.
 
 ## What it tracks
 
 | Area | What you get |
 |---|---|
 | **Locations** | Address, store #, manager & district manager, hours, sq ft, landlord / PM, lease expiration and maintenance responsibilities, health permit, **water / gas / electrical shutoff locations**, and after-hours access notes |
-| **Facility systems** (20 categories, each with its own fields and dropdowns) | Coffee equipment · Ice & water / filters · Refrigeration · HVAC · Lighting · Plumbing · Restrooms · Fire sprinklers & life safety · Electrical panels (with circuit directory) · Doors & locks · Alarm & security · Flooring · Painting & finishes · Ceilings · Windows & glass · Seating, counters & tables · Kitchen & small equipment · Roof & exterior · Utilities & accounts · Pest control |
+| **Facility systems** (22 categories, including Signage & graphics and Cleaning & janitorial; each with its own fields and dropdowns) | Coffee equipment · Ice & water / filters · Refrigeration · HVAC · Lighting · Plumbing · Restrooms · Fire sprinklers & life safety · Electrical panels (with circuit directory) · Doors & locks · Alarm & security · Flooring · Painting & finishes · Ceilings · Windows & glass · Seating, counters & tables · Kitchen & small equipment · Roof & exterior · Utilities & accounts · Pest control |
 | **Every asset** | Type, area, make (brand suggestions), model, serial, asset tag, condition, status, service vendor, install / warranty / last / next service dates, notes, photos and files, and its full work order history with total spend |
-| **Work orders** | Auto-numbered (WO-0001). Priority P1–P4 sets the due date automatically. Covers status workflow, vendor assignment, PO / invoice / ticket #, estimate vs. actual cost, warranty claims, photos, and an activity log. You can change status inline and export to CSV |
+| **Work orders** | Auto-numbered (WO-0001). Types include repair, PM, project, signage install, new café opening, renovation, cleaning, and replacement. You can assign the internal team, the bev tech, or a vendor, and record operational impact. Priority P1–P4 sets the due date automatically. Covers status workflow, vendor assignment, PO / invoice / ticket #, estimate vs. actual cost, warranty claims, photos, and an activity log. You can change status inline and export to CSV |
 | **Preventive maintenance** | A one-click standard café PM program with 28 tasks (fire extinguishers, sprinklers, hood, backflow, grease trap, HVAC filters, ice machine sanitizing, water filters, espresso PM, coils, pest, roof…). ✓ Done rolls the next due date forward |
-| **Vendor directory** | Trade, contacts, tap-to-call, after-hours line, account #, CSLB license, **COI expiration alerts**, W-9, contract / NTE, response SLA, rating, preferred flag, and locations served |
+| **Site visits** | A 30-point walkthrough checklist (exterior, front of house, bar, back of house, restrooms, life safety, cleanliness) with a ✓ / ! / ✗ tap per item, a score, and a cleanliness rating. Every ✗ or ! automatically becomes a work order (P2 or P3). A visit-coverage list shows which cafés have gone longest without a visit |
+| **Reports** | Spend by location vs. annual budget, spend by system and by work type, team and vendor performance (response time, days to complete, on-time %, spend), recurring issues (assets or location × system with 3+ WOs), and **repair-vs-replace** candidates |
+| **Team & vendors** | Trade, contacts, tap-to-call, after-hours line, account #, CSLB license, **COI expiration alerts**, W-9, contract / NTE, response SLA, rating, preferred flag, and locations served |
 | **Plans & documents** | Floor plans, life safety / evacuation plans, as-builts, permits, manuals, warranties, invoices, and photos. They are stored on the device and open offline |
 | **Dashboard** | Open / emergency / overdue WOs, overdue and upcoming PM, expiring COIs and warranties, inspections due, monthly repair spend, and a per-location status table |
 | **Search** | One box searches everything: serial #, model, filter part #, vendor, WO #, and PO |
@@ -37,7 +39,7 @@ After the first visit, the service worker caches the app so it opens with no sig
 
 ## Starter data
 
-*Load Alfred starter locations* adds 10 location **names only**. The list is from memory, and addresses are intentionally blank. Verify each one against <https://locations.alfred.la/>, then edit or delete as needed.
+*Load Alfred café list* adds the 24 Los Angeles-area cafés from locations.alfred.la (address, phone, and online-order code as store #), plus **Alfred HQ (Van Nuys)** and **Warehouse** with addresses left blank. Running it again fills in blank fields without overwriting your edits. If the earlier guessed starter list was loaded, it renames those entries to the real cafés and removes placeholders that have no data attached.
 
 The standard PM frequencies reflect common industry practice. Confirm them against manufacturer manuals, NFPA 25 / CA Title 19, your local fire and health departments, and each lease.
 
