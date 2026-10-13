@@ -63,7 +63,7 @@
   function save() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      DB.saveState(state).catch(err => { console.error(err); toast('⚠️ Could not save: ' + err.message, 6000); });
+      DB.saveState(state).then(() => { if (window.Cloud) Cloud.changed(); }).catch(err => { console.error(err); toast('⚠️ Could not save: ' + err.message, 6000); });
     }, 150);
   }
 
@@ -85,6 +85,7 @@
     save();
   }
 
+  const who = () => (window.Cloud && Cloud.email) || '';
   const byId = (coll, id) => state[coll].find(x => x.id === id);
   const locName = id => (byId('locations', id) || {}).name || '—';
   const vendorName = id => (byId('vendors', id) || {}).company || '';
@@ -238,19 +239,41 @@
   const urlCache = new Map();
   async function fileUrl(fileId) {
     if (urlCache.has(fileId)) return urlCache.get(fileId);
-    const rec = await DB.getFile(fileId);
-    if (!rec) throw new Error('File not found on this device');
+    let rec = await DB.getFile(fileId);
+    if (!rec && window.Cloud && navigator.onLine) {
+      const blob = await Cloud.fetchFile(fileId);
+      rec = { id: fileId, blob, name: fileId, type: blob.type, size: blob.size };
+      await DB.putFile(rec);
+    }
+    if (!rec) throw new Error(navigator.onLine ? 'File not found' : "This file hasn't been downloaded to this device yet — open it once while online.");
     const url = URL.createObjectURL(rec.blob);
     urlCache.set(fileId, url);
     return url;
   }
 
+  // Shrink phone photos (often 3–8 MB) to ≤1600px JPEG so they save and sync quickly.
+  async function shrinkImage(file) {
+    if (!/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.type) || file.size < 400 * 1024 || !window.createImageBitmap) return file;
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.82));
+      if (!blob || blob.size >= file.size) return file;
+      return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+    } catch (e) { return file; }
+  }
+
   async function addFiles(files, meta) {
-    for (const file of files) {
+    for (const original of files) {
+      const file = await shrinkImage(original);
       const fileId = uid();
       await DB.putFile({ id: fileId, blob: file, name: file.name, type: file.type, size: file.size });
+      if (window.Cloud) Cloud.queueUpload(fileId);
       upsert('docs', {
-        fileId, fileName: file.name, mime: file.type, size: file.size,
+        fileId, fileName: file.name, mime: file.type, size: file.size, slot: meta.slot || '',
         title: meta.title && files.length === 1 ? meta.title : file.name.replace(/\.[^.]+$/, ''),
         kind: meta.kind || 'Other', locationId: meta.locationId || '', ownerType: meta.ownerType || '', ownerId: meta.ownerId || '',
         date: today(), notes: meta.notes || '',
@@ -263,18 +286,33 @@
     if (!doc) return;
     remove('docs', id);
     try { await DB.deleteFile(doc.fileId); } catch (e) { /* ignore */ }
+    if (window.Cloud) Cloud.removeFile(doc.fileId);
     if (urlCache.has(doc.fileId)) { URL.revokeObjectURL(urlCache.get(doc.fileId)); urlCache.delete(doc.fileId); }
   }
 
   const isImage = d => (d.mime || '').startsWith('image/');
   const docIcon = d => isImage(d) ? '🖼️' : (d.mime || '').includes('pdf') ? '📄' : '📎';
 
+  const thumbHtml = d => `<a href="#" class="ph" data-action="open-doc" data-id="${d.id}" title="${esc(d.title)}">${isImage(d) ? `<img data-thumb="${esc(d.fileId)}" alt="">` : `<span>${docIcon(d)}<small>${esc(d.title)}</small></span>`}</a>`;
+  const slotDocs = (ownerId, slot, locationId, kind) => state.docs.filter(d => d.ownerId === ownerId ? (d.slot || '') === slot
+    : (kind && !d.ownerId && !d.slot && d.locationId === locationId && d.kind === kind));
+
+  // A row of photo thumbnails with an "add" tile. Used for café photos, shutoffs, plans, systems.
+  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo', label = 'Add photo', pdf = false }) {
+    const docs = slotDocs(ownerId, slot, locationId, kind);
+    return `<div class="photos">${docs.map(thumbHtml).join('')}
+      <label class="ph add" title="${esc(label)}"><b>＋</b><small>${esc(label)}</small><input type="file" multiple hidden accept="image/*${pdf ? ',application/pdf' : ''}"
+        data-change="slot-upload" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-slot="${esc(slot)}" data-loc="${esc(locationId)}" data-kind="${esc(kind)}"></label></div>`;
+  }
+
   function attachmentsHtml(ownerType, ownerId, locationId) {
     const docs = state.docs.filter(d => d.ownerId === ownerId);
+    const imgs = docs.filter(isImage);
     return `<section class="attach" data-attach="${esc(ownerId)}">
       <h3>Photos & files</h3>
-      <ul class="file-list">${docs.map(d => `<li>${docIcon(d)} <a href="#" data-action="open-doc" data-id="${d.id}">${esc(d.title)}</a> <span class="muted">${esc(d.kind)} · ${fmtSize(d.size || 0)}</span>
-        <button type="button" class="link danger" data-action="delete-doc-inline" data-id="${d.id}">remove</button></li>`).join('') || '<li class="muted">No files yet</li>'}</ul>
+      ${imgs.length ? `<div class="photos">${imgs.map(thumbHtml).join('')}</div>` : ''}
+      <ul class="file-list">${docs.filter(d => !isImage(d)).map(d => `<li>${docIcon(d)} <a href="#" data-action="open-doc" data-id="${d.id}">${esc(d.title)}</a> <span class="muted">${esc(d.kind)} · ${fmtSize(d.size || 0)}</span>
+        <button type="button" class="link danger" data-action="delete-doc-inline" data-id="${d.id}">remove</button></li>`).join('') || (imgs.length ? '' : '<li class="muted">No photos or files yet</li>')}</ul>
       <div class="attach-row">
         ${selectHtml('attachKind', S.DOC_KINDS.map(k => [k, k]), ownerType === 'workorder' ? 'Photo' : 'Photo', 'Kind', 'class="sm"')}
         <label class="btn sm">📷 Add photo / file<input type="file" multiple hidden data-change="attach" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-loc="${esc(locationId || '')}" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.dwg"></label>
@@ -286,6 +324,7 @@
     if (!sec) return;
     const input = $('input[type=file]', sec);
     sec.outerHTML = attachmentsHtml(input.dataset.ownerType, ownerId, input.dataset.loc);
+    loadThumbs();
   }
 
   async function openDoc(id) {
@@ -295,7 +334,7 @@
       const url = await fileUrl(doc.fileId);
       if (isImage(doc) && !dialog().open) {
         openModal(doc.title, `<div class="viewer"><img src="${url}" alt="${esc(doc.title)}"></div>
-          <div class="modal-actions"><a class="btn" href="${url}" download="${esc(doc.fileName || doc.title)}">Download</a><span class="spacer"></span><a class="btn" href="${url}" target="_blank" rel="noopener">Open full size</a></div>`, true);
+          <div class="modal-actions"><button class="btn danger" data-action="delete-doc-view" data-id="${doc.id}">Delete</button><span class="spacer"></span><a class="btn" href="${url}" download="${esc(doc.fileName || doc.title)}">Download</a><a class="btn" href="${url}" target="_blank" rel="noopener">Full size</a></div>`, true);
       } else {
         const w = window.open(url, '_blank');
         if (!w) { const a = document.createElement('a'); a.href = url; a.download = doc.fileName || doc.title; a.click(); }
@@ -372,10 +411,10 @@
         if (S.WO_CLOSED.slice(0, 2).includes(rec.status) && !rec.completedDate) rec.completedDate = today();
         rec.history = [...(wo.history || [])];
         if (!id) {
-          rec.number = 'WO-' + String(state.seq.wo++).padStart(4, '0');
-          rec.history.push({ at: new Date().toISOString(), text: `Created (${rec.status})` });
+          rec.number = nextWoNumber();
+          rec.history.push({ at: new Date().toISOString(), text: `Created (${rec.status})`, by: who() });
         } else if (wo.status !== rec.status) {
-          rec.history.push({ at: new Date().toISOString(), text: `Status: ${wo.status} → ${rec.status}` });
+          rec.history.push({ at: new Date().toISOString(), text: `Status: ${wo.status} → ${rec.status}`, by: who() });
         }
         if (id && wo.vendorId !== rec.vendorId && rec.vendorId) rec.history.push({ at: new Date().toISOString(), text: `Assigned to ${vendorName(rec.vendorId)}` });
         const saved = upsert('workorders', rec);
@@ -388,7 +427,7 @@
   function woHistoryHtml(wo) {
     if (!wo.history || !wo.history.length) return '';
     return `<section class="attach"><h3>Activity</h3><ul class="file-list">${wo.history.slice().reverse().map(h =>
-      `<li><span class="muted">${esc(new Date(h.at).toLocaleString())}</span> – ${esc(h.text)}</li>`).join('')}</ul></section>`;
+      `<li><span class="muted">${esc(new Date(h.at).toLocaleString())}</span> – ${esc(h.text)}${h.by ? ` <span class="muted">· ${esc(h.by)}</span>` : ''}</li>`).join('')}</ul></section>`;
   }
 
   function editPM(id, defaults = {}) {
@@ -569,7 +608,9 @@
     const regions = [...new Set(state.locations.map(l => l.region).filter(Boolean))].sort().map(r => [r, r]);
     const cards = list.map(l => {
       const open = state.workorders.filter(w => w.locationId === l.id && !isClosed(w)).length;
-      return `<a class="loc-card" href="#/loc/${l.id}/overview">
+      const pic = state.docs.find(d => d.ownerId === l.id && d.slot === 'storefront' && isImage(d));
+      return `<a class="loc-card${pic ? ' has-pic' : ''}" href="#/loc/${l.id}/overview">
+        ${pic ? `<img class="loc-pic" data-thumb="${esc(pic.fileId)}" alt="">` : ''}
         <div class="loc-top"><h3>${esc(l.name)}</h3>${l.status && l.status !== 'Open' ? `<span class="pill gray">${esc(l.status)}</span>` : ''}</div>
         <p class="muted">${esc([l.address, l.city, l.zip].filter(Boolean).join(', ')) || '<i>Address not set</i>'}</p>
         <div class="loc-meta"><span>🧾 ${open} open WO</span><span>🔧 ${state.assets.filter(a => a.locationId === l.id).length} assets</span>${l.manager ? `<span>👤 ${esc(l.manager)}</span>` : ''}</div></a>`;
@@ -613,21 +654,26 @@
   function locationOverview(l, counts) {
     const info = S.LOCATION_FIELDS.filter(f => l[f.k] && !['name', 'notes', 'maintResp', 'accessNotes', 'waterShutoff', 'gasShutoff', 'electricMain'].includes(f.k))
       .map(f => `<div><dt>${esc(f.label)}</dt><dd>${f.type === 'tel' ? telLink(l[f.k]) : f.type === 'email' ? mailLink(l[f.k]) : f.type === 'date' ? esc(fmtDate(l[f.k])) : esc(l[f.k])}</dd></div>`).join('');
-    const critical = [['🚰 Water shutoff', l.waterShutoff], ['🔥 Gas shutoff', l.gasShutoff], ['⚡ Electrical main', l.electricMain]];
+    const critical = [['🚰 Water shutoff', l.waterShutoff, 'shutoff-water'], ['🔥 Gas shutoff', l.gasShutoff, 'shutoff-gas'], ['⚡ Electrical main', l.electricMain, 'shutoff-electric']];
     const plans = state.docs.filter(d => d.locationId === l.id && /plan|as-built/i.test(d.kind));
     const text = (label, v) => v ? `<h3>${label}</h3><p class="pre">${esc(v)}</p>` : '';
     return `<div class="cols">
       <div class="stack">
         <section class="card"><h2>Facility systems</h2><p class="muted small">Pick a system to see every tracked item with make, model, serial, service history, and files.</p>
           <div class="sys-grid">${S.CATEGORIES.map(c => `<a href="#/loc/${l.id}/${c.id}" class="sys ${counts[c.id] ? '' : 'empty'}"><span class="ico">${c.icon}</span><span>${esc(c.label)}</span><b>${counts[c.id]}</b></a>`).join('')}</div></section>
-        <section class="card"><h2>Emergency shutoffs</h2><dl class="info">${critical.map(([k, v]) => `<div><dt>${k}</dt><dd>${v ? esc(v) : '<span class="muted">Not recorded – <a href="#" data-action="edit-location" data-id="' + l.id + '">add</a></span>'}</dd></div>`).join('')}</dl></section>
+        <section class="card"><h2>Emergency shutoffs</h2><p class="muted small">Add a photo of each shutoff so anyone can find it fast.</p>
+          <div class="shutoffs">${critical.map(([k, v, slot]) => `<div class="shutoff"><div class="dt">${k}</div><div>${v ? esc(v) : '<span class="muted">Location not described – <a href="#" data-action="edit-location" data-id="' + l.id + '">add</a></span>'}</div>
+            ${photoSlot({ ownerType: 'location', ownerId: l.id, slot, locationId: l.id, label: 'Photo' })}</div>`).join('')}</div></section>
       </div>
       <div class="stack">
+        <section class="card"><h2>Location photos</h2><p class="muted small">Storefront, interior, or a screenshot from locations.alfred.la.</p>
+          ${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'storefront', locationId: l.id, label: 'Add photo / screenshot' })}</section>
         <section class="card"><h2>Location info</h2>${info ? `<dl class="info">${info}</dl>` : '<p class="muted">No details yet.</p>'}
           ${text('Lease maintenance responsibilities', l.maintResp)}${text('Access / parking / delivery', l.accessNotes)}${text('Notes', l.notes)}
           <button class="btn sm" data-action="edit-location" data-id="${l.id}">Edit info</button></section>
-        <section class="card"><h2>Floor plans & life safety</h2>${plans.length ? `<ul class="list">${plans.map(d => `<li>${docIcon(d)} <a href="#" data-action="open-doc" data-id="${d.id}">${esc(d.title)}</a> <span class="muted">${esc(d.kind)}</span></li>`).join('')}</ul>` : '<p class="muted">No plans uploaded.</p>'}
-          <button class="btn sm" data-action="upload-doc" data-loc="${l.id}">Upload plan</button></section>
+        <section class="card"><h2>Floor plan</h2>${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'floorplan', locationId: l.id, kind: 'Floor plan', label: 'Add floor plan', pdf: true })}
+          <h2 style="margin-top:16px">Life safety / evacuation plan</h2>${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'lifesafety', locationId: l.id, kind: 'Life safety / evacuation plan', label: 'Add life safety plan', pdf: true })}
+          ${plans.filter(d => !['floorplan', 'lifesafety'].includes(d.slot) && !['Floor plan', 'Life safety / evacuation plan'].includes(d.kind)).length ? `<h3>Other drawings</h3><ul class="list">${plans.filter(d => !['floorplan', 'lifesafety'].includes(d.slot) && !['Floor plan', 'Life safety / evacuation plan'].includes(d.kind)).map(d => `<li>${docIcon(d)} <a href="#" data-action="open-doc" data-id="${d.id}">${esc(d.title)}</a> <span class="muted">${esc(d.kind)}</span></li>`).join('')}</ul>` : ''}</section>
         <section class="card"><h2>🏷️ QR equipment labels</h2><p class="muted small">Print a QR sticker for every tracked item at this café. Staff scan it with their phone camera to report a problem — choosing whether the on-site team can fix it, it needs an Alfred tech, or a vendor.</p>
           <button class="btn sm" data-action="qr-labels" data-loc="${l.id}">Print all labels (${state.assets.filter(a => a.locationId === l.id).length})</button></section>
       </div></div>`;
@@ -636,8 +682,9 @@
   function categorySection(l, cat, assets) {
     const keyFields = cat.fields.filter(f => ['date', 'textarea'].indexOf(f.type) < 0).slice(0, 3);
     assets.sort((a, b) => (a.area || '').localeCompare(b.area || '') || a.name.localeCompare(b.name));
+    const firstPic = a => state.docs.find(d => d.ownerId === a.id && isImage(d));
     const rows = assets.map(a => `<tr>
-      <td><a href="#" data-action="edit-asset" data-id="${a.id}"><b>${esc(a.name)}</b></a><div class="muted small">${esc([a.type, a.area].filter(Boolean).join(' · '))}</div></td>
+      <td class="asset-cell">${firstPic(a) ? `<a href="#" data-action="edit-asset" data-id="${a.id}" class="mini"><img data-thumb="${esc(firstPic(a).fileId)}" alt=""></a>` : ''}<div><a href="#" data-action="edit-asset" data-id="${a.id}"><b>${esc(a.name)}</b></a><div class="muted small">${esc([a.type, a.area].filter(Boolean).join(' · '))}</div></div></td>
       <td>${esc([a.make, a.model].filter(Boolean).join(' '))}${a.serial ? `<div class="muted small">S/N ${esc(a.serial)}</div>` : ''}</td>
       <td class="small">${keyFields.map(f => a[f.k] ? `<div><span class="muted">${esc(f.label)}:</span> ${esc(a[f.k])}</div>` : '').join('')}</td>
       <td>${statusPill(a.status)}${a.condition ? `<div class="muted small">${esc(a.condition)}</div>` : ''}</td>
@@ -649,6 +696,8 @@
       ${rows ? `<div class="table-wrap"><table class="table"><thead><tr><th>Item</th><th>Make / model</th><th>Specs</th><th>Status</th><th>Next service</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
         : emptyState(`No ${esc(cat.label.toLowerCase())} tracked at this location yet.`, `<button class="btn primary" data-action="add-asset" data-loc="${l.id}" data-cat="${cat.id}">+ Add first item</button>`)}
       </section>
+      <section class="card"><h2>${cat.icon} ${esc(cat.label)} photos</h2><p class="muted small">Overview shots, nameplates, setups — photos of a specific item go on that item.</p>
+        ${photoSlot({ ownerType: 'system', ownerId: l.id + ':' + cat.id, slot: 'system', locationId: l.id, label: 'Add photos' })}</section>
       ${openWO.length ? `<section class="card"><h2>Open work orders – ${esc(cat.label)}</h2>${woTable(openWO, false)}</section>` : ''}`;
   }
 
@@ -801,57 +850,57 @@
 
   // --- settings / data ---
   function viewSettings() {
-    const counts = ['locations', 'assets', 'workorders', 'pm', 'vendors', 'visits', 'docs'].map(k => `<li><b>${state[k].length}</b> ${k === 'pm' ? 'PM tasks' : k === 'workorders' ? 'work orders' : k}</li>`).join('');
-    return pageHead('Settings & data') + `<div class="cols">
+    const cloud = window.Cloud;
+    const st = cloud ? cloud.status : null;
+    const syncLine = !cloud ? '' : st.state === 'error' ? `<span class="badge red">Sync problem</span> <span class="muted small">${esc(st.error)}</span>`
+      : st.state === 'offline' ? `<span class="badge amber">Offline</span> ${st.pending ? `${st.pending} change(s) saved on this device — they'll sync when you're back online.` : ''}`
+      : st.state === 'syncing' ? '<span class="badge">Syncing…</span>'
+      : `<span class="badge green">Synced</span>${st.last ? ` <span class="muted small">${esc(new Date(st.last).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}</span>` : ''}`;
+    const account = cloud ? `<section class="card"><h2>👤 Account</h2>
+        <p>Signed in as <b>${esc(cloud.email)}</b></p>
+        <p>${syncLine}</p>
+        <p class="muted small">Everyone on the Alfred facilities team signs in and sees the same information. Changes sync automatically across phones and computers, and the app still works with no signal.</p>
+        <div class="btn-row"><button class="btn" data-action="sync-now">↻ Sync now</button><button class="btn" data-action="change-password">Change password</button><button class="btn" data-action="sign-out">Sign out</button></div></section>`
+      : `<section class="card"><h2>👤 Sign-in & sync</h2><p class="muted small">Not connected yet — your information is saved on this device only. Once Supabase is connected, everyone signs in and the same information shows up on every phone and computer.</p>
+        <div class="btn-row"><button class="btn" data-action="export-json" data-files="1">⬇ Save a copy of this device's data</button><label class="btn">⬆ Load a copy<input type="file" accept=".json,application/json" hidden data-change="import-json"></label></div></section>`;
+    return pageHead('Settings') + `<div class="cols">
       <div class="stack">
-      <section class="card"><h2>Backup & transfer</h2>
-        <p>All data is stored <b>only in this browser on this device</b> — it works offline, but is not synced. Export a backup regularly (e.g. weekly to Google Drive) and import it on another device to move data.</p>
-        <ul class="inline-stats">${counts}</ul>
-        <p class="muted small" id="storage-est"></p>
-        <div class="btn-row"><button class="btn primary" data-action="export-json" data-files="1">⬇ Full backup (with files)</button><button class="btn" data-action="export-json">⬇ Backup (data only)</button>
-        <label class="btn">⬆ Restore backup<input type="file" accept=".json,application/json" hidden data-change="import-json"></label></div>
-        <h3>Spreadsheet exports (CSV)</h3>
-        <div class="btn-row">${['locations', 'assets', 'workorders', 'pm', 'vendors', 'visits'].map(w => `<button class="btn sm" data-action="export-csv" data-what="${w}">${w}</button>`).join('')}</div>
-      </section>
-      <section class="card"><h2>🏷️ QR codes & facilities contact</h2>
-        <p class="small">Printed on every QR label. When staff scan a label and report a problem, the message goes to this contact with a link that opens a pre-filled work order here.</p>
-        <div class="form-grid">
-          <label class="field"><span>Facilities contact name</span><input id="set-fn" value="${esc(state.settings.facilitiesName || '')}" data-change="setting" data-key="facilitiesName" placeholder="e.g. Facilities – Travis"></label>
-          <label class="field"><span>Mobile # (for texts)</span><input type="tel" id="set-fp" value="${esc(state.settings.facilitiesPhone || '')}" data-change="setting" data-key="facilitiesPhone"></label>
-          <label class="field"><span>Email</span><input type="email" id="set-fe" value="${esc(state.settings.facilitiesEmail || '')}" data-change="setting" data-key="facilitiesEmail"></label>
-          <label class="field full"><span>Public app URL (where phones open the QR link)</span><input type="url" id="set-url" value="${esc(state.settings.appUrl || '')}" data-change="setting" data-key="appUrl" placeholder="${esc(pageBase() || 'https://<you>.github.io/AlfredCoffee/')}"></label>
-        </div>
-        <p class="muted small">${pageBase() ? `Leave the URL blank to use this address (${esc(pageBase())}).` : '⚠️ You opened the app as a file — host it (e.g. GitHub Pages, see README) and enter that URL so phones can open scanned labels.'} Reprint labels after changing the contact info.</p>
-      </section>
+      ${account}
+      <section class="card"><h2>📱 Add to your home screen</h2>
+        <p class="small"><b>iPhone:</b> Safari → Share → Add to Home Screen.<br><b>Android:</b> Chrome → ⋮ → Add to Home screen.<br><b>Chromebook / computer:</b> Chrome → install icon in the address bar.</p></section>
       <section class="card"><h2>🔗 ResQ work orders</h2>
-        <p class="small">If Alfred runs work orders in <b>ResQ</b>, keep ResQ as the system of record for requests, dispatch, quotes and invoices. Use this app for café specs, site visits, plans, and cross-café reporting. Import a ResQ work-order CSV export any time: columns and café names are matched automatically, and re-importing updates existing ResQ #s instead of creating duplicates.</p>
-        <label class="field full"><span>ResQ web app link (for quick-open buttons)</span><input type="url" id="resq-url" value="${esc(state.settings.resqUrl || '')}" placeholder="https://… (the ResQ address you log in at)" data-change="resq-url"></label>
+        <p class="small">Import a ResQ work-order export (CSV) to see that history here in Reports and on each café and piece of equipment. Re-importing updates existing ResQ #s instead of duplicating them.</p>
+        <label class="field full"><span>ResQ web address (for "Open ResQ" buttons)</span><input type="url" id="resq-url" value="${esc(state.settings.resqUrl || '')}" placeholder="https://…" data-change="resq-url"></label>
         <div class="btn-row" style="margin-top:10px"><label class="btn primary">⬆ Import ResQ work orders (CSV)<input type="file" accept=".csv,text/csv" hidden data-change="import-wo-csv"></label></div>
-        <p class="muted small">Imported work orders show up in Reports (spend, vendor performance, recurring issues, repair vs. replace) and in each café's and asset's history.</p>
       </section>
-      <section class="card"><h2>Install & offline</h2>
-        <p>Status: <b id="net-status-2">${navigator.onLine ? 'Online' : 'Offline'}</b> · Offline cache: <b>${'serviceWorker' in navigator && navigator.serviceWorker.controller ? 'active' : location.protocol === 'file:' ? 'n/a (opened as a file — still works offline)' : 'not yet active (reload once)'}</b></p>
-        <p class="muted small">On Chromebook / Chrome: click the install icon in the address bar (or ⋮ → Cast, save and share → Install page as app). On iPhone: Share → Add to Home Screen. Once installed it opens like a regular app and works without signal.</p>
-        <button class="btn" data-action="persist">Ask browser to keep data permanently</button>
-      </section></div>
+      <section class="card"><h2>📊 Spreadsheet exports</h2>
+        <div class="btn-row">${[['locations', 'Locations'], ['assets', 'Equipment'], ['workorders', 'Work orders'], ['pm', 'PM tasks'], ['vendors', 'Team & vendors'], ['visits', 'Site visits']].map(([w, l]) => `<button class="btn sm" data-action="export-csv" data-what="${w}">${l}</button>`).join('')}</div></section>
+      </div>
       <div class="stack">
       <section class="card"><h2>Appearance</h2>
         ${selectHtml('theme', [['light', 'Light'], ['dark', 'Dark']], ui.theme, 'Match system', 'data-change="theme"')}</section>
-      <section class="card"><h2>Starter data</h2>
-        <p class="muted small">Adds Alfred's 24 California cafés (from locations.alfred.la), the Calabasas new build, HQ (708 N Croft Ave) and the Van Nuys warehouse. Existing locations are kept; blank address / phone fields are filled in.</p>
-        <button class="btn" data-action="seed">Load / update Alfred café list</button>
-        <button class="btn" data-action="apply-pm">Apply standard PM program…</button></section>
-      <section class="card danger-zone"><h2>Danger zone</h2><p class="muted small">Erase everything stored by this app on this device.</p><button class="btn danger" data-action="reset">Erase all data</button></section>
+      <section class="card"><h2>🏷️ QR labels contact</h2>
+        <p class="muted small">Used only if you print QR equipment labels: where staff reports get sent.</p>
+        <div class="form-grid">
+          <label class="field"><span>Name</span><input id="set-fn" value="${esc(state.settings.facilitiesName || '')}" data-change="setting" data-key="facilitiesName" placeholder="e.g. Facilities – Travis"></label>
+          <label class="field"><span>Mobile #</span><input type="tel" id="set-fp" value="${esc(state.settings.facilitiesPhone || '')}" data-change="setting" data-key="facilitiesPhone"></label>
+          <label class="field"><span>Email</span><input type="email" id="set-fe" value="${esc(state.settings.facilitiesEmail || '')}" data-change="setting" data-key="facilitiesEmail"></label>
+          <label class="field"><span>App web address</span><input type="url" id="set-url" value="${esc(state.settings.appUrl || '')}" data-change="setting" data-key="appUrl" placeholder="${esc(pageBase() || 'https://….netlify.app/')}"></label>
+        </div></section>
       </div></div>`;
   }
 
   // --- shared: work-order creation & metrics ---
+  function nextWoNumber() {
+    const max = state.workorders.reduce((m, w) => Math.max(m, parseInt((w.number || '').replace(/\D/g, ''), 10) || 0), 0);
+    return 'WO-' + String(max + 1).padStart(4, '0');
+  }
   function createWO(rec) {
     const p = S.WO_PRIORITIES.find(x => x.label === rec.priority) || S.WO_PRIORITIES[2];
     return upsert('workorders', {
       status: 'Open', woType: 'Repair', reportedDate: today(), ...rec, priority: p.label,
       dueDate: rec.dueDate || addDays(rec.reportedDate || today(), Math.floor(p.hours / 24)),
-      number: 'WO-' + String(state.seq.wo++).padStart(4, '0'),
+      number: nextWoNumber(),
       history: [{ at: new Date().toISOString(), text: rec.historyText || 'Created' }],
     });
   }
@@ -1491,7 +1540,7 @@
     download(`alfred-${what}-${today()}.csv`, toCsv(state[what], cols), 'text/csv');
   }
 
-  function seedLocations() {
+  function seedLocations(quiet) {
     let added = 0, updated = 0, removed = 0;
     const realNames = new Set(S.SEED_LOCATIONS.map(r => r[0]));
     const isStarter = l => /^Starter entry/.test(l.notes || '');
@@ -1514,10 +1563,11 @@
         if (changed) updated++;
         continue;
       }
-      upsert('locations', { name, status: status || 'Open', ...data });
+      upsert('locations', { id: 'loc-' + storeNo.toLowerCase(), name, status: status || 'Open', ...data });
       added++;
     }
     save();
+    if (quiet) return;
     toast(`Alfred locations: ${added} added, ${updated} filled in${removed ? `, ${removed} old placeholders removed` : ''}`, 4000);
     render();
   }
@@ -1596,6 +1646,10 @@
     'upload-doc': el => uploadDocs({ locationId: el.dataset.loc || ui.docs.loc || '' }),
     'open-doc': el => openDoc(el.dataset.id),
     'edit-doc': el => editDocMeta(el.dataset.id),
+    'delete-doc-view': el => {
+      if (!confirm('Delete this photo / file?')) return;
+      deleteDoc(el.dataset.id).then(() => { closeModal(); render(); });
+    },
     'delete-doc-inline': el => {
       if (!confirm('Remove this file?')) return;
       const doc = byId('docs', el.dataset.id);
@@ -1605,19 +1659,18 @@
     'export-csv': el => exportCsv(el.dataset.what),
     'seed': () => seedLocations(),
     'print': () => window.print(),
-    'persist': async () => {
-      if (!navigator.storage || !navigator.storage.persist) return toast('Not supported in this browser');
-      toast(await navigator.storage.persist() ? 'Storage marked persistent ✓' : 'Browser declined — installing the app usually allows it');
+    'sync-now': () => { Cloud.syncNow().then(() => { toast(Cloud.status.state === 'error' ? 'Sync problem: ' + Cloud.status.error : 'Up to date'); render(); }); },
+    'change-password': () => {
+      openForm({ title: 'Change password', wide: false, fields: [{ k: 'pw', label: 'New password (8+ characters)', type: 'password', required: true }, { k: 'pw2', label: 'Confirm new password', type: 'password', required: true }],
+        onSave: async v => { if (v.pw.length < 8) throw new Error('Use at least 8 characters.'); if (v.pw !== v.pw2) throw new Error("Passwords don't match."); await Cloud.updatePassword(v.pw); toast('Password changed'); } });
     },
-    'reset': async () => {
-      if (!confirm('Erase ALL locations, assets, work orders, vendors, and files on this device?')) return;
-      if (prompt('Type ERASE to confirm') !== 'ERASE') return;
-      await DB.clearAll();
-      state = blankState();
-      await DB.saveState(state);
+    'sign-out': async () => {
+      const n = Cloud.pendingCount();
+      if (n && !confirm(`${n} change(s) on this device haven't synced yet (you're offline). Signing out will lose them. Sign out anyway?`)) return;
+      if (!n && !confirm('Sign out of Alfred on this device?')) return;
+      await Cloud.signOut();
       location.hash = '#/';
-      render();
-      toast('All data erased');
+      location.reload();
     },
     'menu': () => document.body.classList.toggle('nav-open'),
   };
@@ -1643,7 +1696,7 @@
     else if (kind === 'goto-system') { if (el.value) location.hash = `#/loc/${el.dataset.loc}/${el.value}`; }
     else if (kind === 'wo-status') {
       const w = byId('workorders', el.dataset.id);
-      const rec = { ...w, status: el.value, history: [...(w.history || []), { at: new Date().toISOString(), text: `Status: ${w.status} → ${el.value}` }] };
+      const rec = { ...w, status: el.value, history: [...(w.history || []), { at: new Date().toISOString(), text: `Status: ${w.status} → ${el.value}`, by: who() }] };
       if (S.WO_CLOSED.slice(0, 2).includes(el.value) && !rec.completedDate) rec.completedDate = today();
       upsert('workorders', rec);
       toast(`${w.number} → ${el.value}`);
@@ -1654,6 +1707,13 @@
       const kindSel = el.closest('.attach').querySelector('select');
       addFiles(files, { ownerType: el.dataset.ownerType, ownerId: el.dataset.ownerId, locationId: el.dataset.loc, kind: kindSel ? kindSel.value || 'Photo' : 'Photo' })
         .then(() => { refreshAttachments(el.dataset.ownerId); toast(`${files.length} file(s) attached`); })
+        .catch(err => toast('Upload failed: ' + err.message));
+    } else if (kind === 'slot-upload') {
+      const files = [...el.files];
+      if (!files.length) return;
+      toast('Saving photo…');
+      addFiles(files, { ownerType: el.dataset.ownerType, ownerId: el.dataset.ownerId, slot: el.dataset.slot, locationId: el.dataset.loc, kind: el.dataset.kind })
+        .then(() => { toast(`${files.length} photo${files.length > 1 ? 's' : ''} saved`); render(); })
         .catch(err => toast('Upload failed: ' + err.message));
     } else if (kind === 'import-wo-csv') { if (el.files[0]) importWorkOrdersCsv(el.files[0]); el.value = ''; }
     else if (kind === 'setting') { state.settings[el.dataset.key] = el.value.trim(); save(); toast('Saved'); }
@@ -1682,8 +1742,77 @@
   function updateNet() {
     const on = navigator.onLine;
     const el = $('#net-status');
-    el.textContent = on ? 'Online' : 'Offline';
-    el.className = 'net ' + (on ? 'on' : 'off');
+    const st = window.Cloud && Cloud.email ? Cloud.status : null;
+    if (st && on) {
+      const map = { syncing: ['Syncing…', 'on'], synced: ['Synced', 'on'], error: ['Sync problem', 'off'], idle: ['Online', 'on'], offline: ['Online', 'on'] };
+      const [text, cls] = map[st.state] || map.idle;
+      el.textContent = text;
+      el.className = 'net ' + cls;
+      el.title = st.state === 'error' ? st.error : st.last ? 'Last synced ' + new Date(st.last).toLocaleTimeString() : '';
+    } else {
+      el.textContent = on ? 'Online' : 'Offline';
+      el.className = 'net ' + (on ? 'on' : 'off');
+      el.title = !on && st && st.pending ? `${st.pending} change(s) will sync when you're back online` : '';
+    }
+  }
+
+  // ---------- login ----------
+  function showLogin(message) {
+    document.body.classList.add('signed-out');
+    const box = $('#login');
+    box.hidden = false;
+    box.innerHTML = `<form class="login-card" id="login-form" novalidate>
+      <img src="icons/icon.svg" alt="Alfred" class="login-logo">
+      <h1>Alfred Facilities</h1>
+      <p class="muted">Sign in to continue</p>
+      <label class="field"><span>Email</span><input type="email" name="email" autocomplete="username" required></label>
+      <label class="field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required></label>
+      <p class="form-error"${message ? '' : ' hidden'}>${esc(message || '')}</p>
+      <button class="btn primary big" type="submit">Sign in</button>
+      <button class="link" type="button" data-login="forgot">Forgot password?</button>
+      <p class="muted small">No account? Ask your facilities manager to add you.</p>
+    </form>`;
+    const form = $('#login-form');
+    const err = $('.form-error', form);
+    const fail = m => { err.hidden = false; err.textContent = m; };
+    form.elements.email.focus();
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const email = form.elements.email.value.trim(), pw = form.elements.password.value;
+      if (!email || !pw) return fail('Enter your email and password.');
+      if (!navigator.onLine) return fail("You're offline — connect to sign in the first time.");
+      const btn = $('button[type=submit]', form);
+      btn.disabled = true; btn.textContent = 'Signing in…';
+      try {
+        await Cloud.signIn(email, pw);
+        box.hidden = true; box.innerHTML = '';
+        document.body.classList.remove('signed-out');
+        await startCloud();
+      } catch (ex) {
+        fail(/invalid/i.test(ex.message || '') ? 'Wrong email or password.' : (ex.message || 'Could not sign in.'));
+        btn.disabled = false; btn.textContent = 'Sign in';
+      }
+    });
+    $('[data-login="forgot"]', form).addEventListener('click', async () => {
+      const email = form.elements.email.value.trim();
+      if (!email) return fail('Type your email above first, then tap "Forgot password?".');
+      try { await Cloud.resetPassword(email); err.hidden = false; err.className = 'form-note'; err.textContent = `If ${email} has an account, a reset link is on its way. Open it on this device.`; }
+      catch (ex) { fail(ex.message || 'Could not send reset email.'); }
+    });
+  }
+
+  async function startCloud() {
+    toast('Loading your information…');
+    await Cloud.start();
+    if (!state.locations.length && Cloud.status.state === 'synced') { seedLocations(true); Cloud.syncNow(); }
+    render();
+    updateNet();
+  }
+
+  function promptNewPassword() {
+    history.replaceState(null, '', '#/');
+    openForm({ title: 'Set a new password', wide: false, fields: [{ k: 'pw', label: 'New password (8+ characters)', type: 'password', required: true }, { k: 'pw2', label: 'Confirm new password', type: 'password', required: true }],
+      onSave: async v => { if (v.pw.length < 8) throw new Error('Use at least 8 characters.'); if (v.pw !== v.pw2) throw new Error("Passwords don't match."); await Cloud.updatePassword(v.pw); toast('Password updated'); } });
   }
   window.addEventListener('online', updateNet);
   window.addEventListener('offline', updateNet);
@@ -1702,10 +1831,27 @@
       state = blankState();
       toast('⚠️ Browser storage unavailable — data will not be saved', 8000);
     }
-    render();
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
       navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW registration failed', err));
     }
+    const publicPage = route().name === 'report'; // QR report pages work without signing in
+    if (window.Cloud && !publicPage) {
+      const session = await Cloud.init({
+        getState: () => state,
+        setState: s => { state = Object.assign(blankState(), s || {}); },
+        persist: () => DB.saveState(state),
+        onRemoteChange: () => { if (!dialog().open) render(); },
+        onStatus: () => { updateNet(); const el = $('#main .card h2'); if (route().name === 'settings' && el && !dialog().open && !$('#main input:focus')) render(); },
+        onPasswordRecovery: promptNewPassword,
+        onSignedOut: () => showLogin('Your session ended — please sign in again.'),
+      });
+      if (!session) return showLogin();
+      render();
+      startCloud();
+      return;
+    }
+    if (!state.locations.length && !publicPage) seedLocations(true);
+    render();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

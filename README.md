@@ -16,7 +16,8 @@ An offline-first facility management app for Alfred Coffee's California cafés, 
 | **Site visits** | A 30-point walkthrough checklist (exterior, front of house, bar, back of house, restrooms, life safety, cleanliness) with a ✓ / ! / ✗ tap per item, a score, and a cleanliness rating. Every ✗ or ! automatically becomes a work order (P2 or P3). A visit-coverage list shows which cafés have gone longest without a visit |
 | **Reports** | Spend by location vs. annual budget, spend by system and by work type, team and vendor performance (response time, days to complete, on-time %, spend), recurring issues (assets or location × system with 3+ WOs), and **repair-vs-replace** candidates |
 | **Team & vendors** | Trade, contacts, tap-to-call, after-hours line, account #, CSLB license, **COI expiration alerts**, W-9, contract / NTE, response SLA, rating, preferred flag, and locations served |
-| **Plans & documents** | Floor plans, life safety / evacuation plans, as-builts, permits, manuals, warranties, invoices, and photos. They are stored on the device and open offline |
+| **Photos everywhere** | Photos and screenshots for each café, each emergency shutoff (water / gas / electric), the floor plan and life safety plan, each facility system, and each piece of equipment. Phone photos are shrunk automatically before saving |
+| **Plans & documents** | Floor plans, life safety / evacuation plans, as-builts, permits, manuals, warranties, invoices, and photos. Once opened, they're kept on the device for offline use |
 | **Dashboard** | Open / emergency / overdue WOs, overdue and upcoming PM, expiring COIs and warranties, inspections due, monthly repair spend, and a per-location status table |
 | **Search** | One box searches everything: serial #, model, filter part #, vendor, WO #, and PO |
 
@@ -42,18 +43,30 @@ Contact info and equipment details are printed into each code, so reprint labels
 
 If ResQ QR stickers are already on Alfred's equipment, don't add a second sticker to the same device. Use these labels for anything ResQ doesn't cover.
 
-## Your data — important
+## Sign-in & sync (Supabase)
 
-- Data is saved in the browser's local storage (IndexedDB) **on that one device only**. Nothing is sent to a server.
-- **Back up regularly:** go to Settings → *Full backup (with files)*, which downloads a `.json` file. Save it to Google Drive. Use *Restore backup* to load it on another device.
-- Clearing browser data / site data for this page erases it. Settings → *Ask browser to keep data permanently* helps prevent automatic eviction. Installing the app also helps.
-- Don't store alarm codes or passwords. There is a "passcode hint" field only.
+Everyone on the team signs in, and everyone sees the same information on every phone and computer. The app keeps a copy on each device, so it's instant and works with no signal. Changes sync automatically when you're online.
+
+One-time setup:
+1. In Supabase, open **SQL Editor → New query**, paste all of [`supabase-setup.sql`](supabase-setup.sql), and click **Run**.
+2. Go to **Project Settings → API** and copy the **Project URL** and the **anon / publishable key** into [`js/config.js`](js/config.js). Never use the `service_role` / secret key.
+3. Go to **Authentication → Sign In / Providers** and turn **off** "Allow new users to sign up", so only people you add can get in.
+4. Go to **Authentication → URL Configuration** and set the **Site URL** to the Netlify address. This makes "Forgot password" emails link back to the app.
+5. Add people under **Authentication → Users → Add user → Create new user**: enter their email and a temporary password, and tick **Auto Confirm**. They can change their password in Settings.
+
+On first sign-in, the app loads Alfred's café list automatically. Photos and documents are stored in a private Supabase bucket that only signed-in users can open.
+
+Until `js/config.js` is filled in, the app runs on the device only, with no login.
 
 ## Starter data
 
 *Load Alfred café list* adds the 24 Los Angeles-area cafés from locations.alfred.la (address, phone, and online-order code as store #), plus **Calabasas (new build)** (status *Under construction*), **Alfred HQ** at 708 N Croft Ave, Los Angeles 90069, and the **Warehouse** in Van Nuys (address to be added). Running it again fills in blank fields without overwriting your edits. If the earlier guessed starter list was loaded, it renames those entries to the real cafés and removes placeholders that have no data attached.
 
 The standard PM frequencies reflect common industry practice. Confirm them against manufacturer manuals, NFPA 25 / CA Title 19, your local fire and health departments, and each lease.
+
+## Third-party code
+
+`js/vendor/supabase.js` ([supabase-js](https://github.com/supabase/supabase-js) 2.117.2, MIT) and `js/vendor/qrcode.js` ([qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 1.4.4, MIT).
 
 ## Tech
 

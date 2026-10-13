@@ -1,6 +1,6 @@
 /* Service worker: caches the app shell so it opens with no connection. Bump VERSION on each release. */
-const VERSION = 'af-v6';
-const SHELL = ['./', './index.html', './css/app.css', './js/vendor/qrcode.js', './js/schema.js', './js/db.js', './js/app.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'];
+const VERSION = 'af-v7';
+const SHELL = ['./', './index.html', './css/app.css', './js/vendor/qrcode.js', './js/vendor/supabase.js', './js/config.js', './js/schema.js', './js/db.js', './js/sync.js', './js/app.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

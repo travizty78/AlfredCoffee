@@ -37,6 +37,8 @@
 
   window.DB = {
     loadState: () => tx('kv', 'readonly', s => s.get('state')),
+    getKv: key => tx('kv', 'readonly', s => s.get(key)),
+    putKv: (key, val) => tx('kv', 'readwrite', s => s.put(val, key)),
     saveState: state => tx('kv', 'readwrite', s => s.put(state, 'state')),
     putFile: rec => tx('files', 'readwrite', s => s.put(rec)),
     getFile: id => tx('files', 'readonly', s => s.get(id)),
