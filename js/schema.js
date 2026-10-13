@@ -468,7 +468,7 @@
   const DOC_KINDS = ['Floor plan', 'Life safety / evacuation plan', 'Reflected ceiling plan', 'Electrical plan / one-line', 'Plumbing plan', 'Mechanical / HVAC plan', 'As-built drawings', 'Equipment schedule', 'Permit', 'Certificate of occupancy', 'Health permit', 'Inspection report', 'Certificate of insurance (COI)', 'Warranty', 'Manual / spec sheet', 'Quote / proposal', 'Invoice', 'Photo', 'Lease / landlord doc', 'SDS', 'Other'];
 
   // Alfred California cafés from locations.alfred.la (provided Oct 2026).
-  // [name, storeNo (online-order code), address, city, zip, phone, region, format]
+  // [name, storeNo (online-order code), address, city, zip, phone, region, format, status]
   const SEED_LOCATIONS = [
     ['Abbot Kinney', 'AK', '1653B Abbot Kinney Blvd', 'Venice', '90291', '(424) 390-7200', 'Los Angeles – Westside'],
     ['Arts District', 'AD', '714 Traction Ave', 'Los Angeles', '90013', '(213) 770-5006', 'Los Angeles – Central'],
@@ -494,8 +494,9 @@
     ['Topanga Village', 'TV', '6316 Topanga Canyon Blvd #1100', 'Woodland Hills', '91367', '(747) 222-1200', 'San Fernando Valley'],
     ['Ventura Place', 'VP', '12077 Ventura Pl', 'Studio City', '91604', '(818) 960-1020', 'San Fernando Valley'],
     ['Westwood', 'WW', '1154 Westwood Blvd', 'Los Angeles', '90024', '(424) 404-1700', 'Los Angeles – Westside'],
-    ['Alfred HQ', 'HQ', '', 'Van Nuys', '', '', 'San Fernando Valley', 'Headquarters / office'],
-    ['Warehouse', 'WH', '', '', '', '', 'San Fernando Valley', 'Warehouse'],
+    ['Calabasas (new build)', 'CAL', '', 'Calabasas', '', '', 'San Fernando Valley', 'Café', 'Under construction'],
+    ['Alfred HQ', 'HQ', '708 N Croft Ave', 'Los Angeles', '90069', '', 'Los Angeles – Central', 'Headquarters / office'],
+    ['Warehouse', 'WH', '', 'Van Nuys', '', '', 'San Fernando Valley', 'Warehouse'],
   ];
   // Names used by the earlier guessed starter list → real café names.
   const SEED_ALIASES = { 'Alfred – Silver Lake': 'Silverlake', 'Alfred – Downtown LA': 'Arts District', 'Alfred – Studio City': 'Ventura Place' };

@@ -526,7 +526,7 @@
 
     if (!state.locations.length) {
       return pageHead('Dashboard') + kpis + emptyState('No locations yet. Load the Alfred café list to get started.',
-        `<button class="btn primary" data-action="seed">Load Alfred café list (24 cafés + HQ + warehouse)</button> <button class="btn" data-action="add-location">Add location</button>`);
+        `<button class="btn primary" data-action="seed">Load Alfred café list (24 cafés + Calabasas + HQ + warehouse)</button> <button class="btn" data-action="add-location">Add location</button>`);
     }
 
     const rows = sortedLocations().map(l => {
@@ -818,7 +818,7 @@
       <section class="card"><h2>Appearance</h2>
         ${selectHtml('theme', [['light', 'Light'], ['dark', 'Dark']], ui.theme, 'Match system', 'data-change="theme"')}</section>
       <section class="card"><h2>Starter data</h2>
-        <p class="muted small">Adds Alfred's 24 California cafés (from locations.alfred.la) plus HQ (Van Nuys) and Warehouse. Existing locations are kept; blank address / phone fields are filled in.</p>
+        <p class="muted small">Adds Alfred's 24 California cafés (from locations.alfred.la), the Calabasas new build, HQ (708 N Croft Ave) and the Van Nuys warehouse. Existing locations are kept; blank address / phone fields are filled in.</p>
         <button class="btn" data-action="seed">Load / update Alfred café list</button>
         <button class="btn" data-action="apply-pm">Apply standard PM program…</button></section>
       <section class="card danger-zone"><h2>Danger zone</h2><p class="muted small">Erase everything stored by this app on this device.</p><button class="btn danger" data-action="reset">Erase all data</button></section>
@@ -1110,16 +1110,18 @@
       if (realNames.has(real) && !state.locations.some(o => o !== l && o.name === real)) { l.name = real; l.notes = ''; }
       else if (!hasRecords(l.id)) { state.locations = state.locations.filter(o => o !== l); removed++; }
     }
-    for (const [name, storeNo, address, city, zip, phone, region, format] of S.SEED_LOCATIONS) {
+    for (const [name, storeNo, address, city, zip, phone, region, format, status] of S.SEED_LOCATIONS) {
       const data = { storeNo, address, city, zip, phone, region, format: format || 'Café' };
       const existing = state.locations.find(l => l.name === name);
       if (existing) {
         let changed = false;
+        // A newly known street address replaces the placeholder city / ZIP / region as a set.
+        if (address && !existing.address) { Object.assign(existing, { address, city, zip, region }); changed = true; }
         for (const [k, v] of Object.entries(data)) if (v && !existing[k]) { existing[k] = v; changed = true; }
         if (changed) updated++;
         continue;
       }
-      upsert('locations', { name, status: 'Open', ...data });
+      upsert('locations', { name, status: status || 'Open', ...data });
       added++;
     }
     save();

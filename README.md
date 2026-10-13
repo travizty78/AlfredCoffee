@@ -39,7 +39,7 @@ After the first visit, the service worker caches the app so it opens with no sig
 
 ## Starter data
 
-*Load Alfred café list* adds the 24 Los Angeles-area cafés from locations.alfred.la (address, phone, and online-order code as store #), plus **Alfred HQ (Van Nuys)** and **Warehouse** with addresses left blank. Running it again fills in blank fields without overwriting your edits. If the earlier guessed starter list was loaded, it renames those entries to the real cafés and removes placeholders that have no data attached.
+*Load Alfred café list* adds the 24 Los Angeles-area cafés from locations.alfred.la (address, phone, and online-order code as store #), plus **Calabasas (new build)** (status *Under construction*), **Alfred HQ** at 708 N Croft Ave, Los Angeles 90069, and the **Warehouse** in Van Nuys (address to be added). Running it again fills in blank fields without overwriting your edits. If the earlier guessed starter list was loaded, it renames those entries to the real cafés and removes placeholders that have no data attached.
 
 The standard PM frequencies reflect common industry practice. Confirm them against manufacturer manuals, NFPA 25 / CA Title 19, your local fire and health departments, and each lease.
 
