@@ -1089,7 +1089,7 @@
         <div class="cta">📱 Scan to report a problem</div><div class="name">${esc(a.name)}</div>
         <div class="meta">${esc(locName(a.locationId))} · ${esc(cat.label || '')}</div>
         <div class="meta">${esc([a.make, a.model].filter(Boolean).join(' '))}${a.serial ? ' · S/N ' + esc(a.serial) : ''}${a.tag ? ' · Tag ' + esc(a.tag) : ''}</div>
-        <div class="brand">alfred facilities</div></div></div>`;
+        <div class="brand">alfred</div></div></div>`;
     }).join('');
     const w = window.open('', '_blank');
     if (!w) return toast('Allow pop-ups to print labels');
@@ -1547,7 +1547,7 @@
     $('#main').innerHTML = html;
     updateResqNav();
     $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.route === (r.name === 'loc' ? 'locations' : r.name)));
-    document.title = 'Alfred Facilities';
+    document.title = 'Alfred';
 
     if (focusId) {
       const el = document.getElementById(focusId);

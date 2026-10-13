@@ -1,6 +1,6 @@
 {
-  "name": "Alfred Facilities",
-  "short_name": "Facilities",
+  "name": "Alfred",
+  "short_name": "Alfred",
   "description": "Offline-first facility management for Alfred Coffee locations.",
   "start_url": "./index.html",
   "scope": "./",
