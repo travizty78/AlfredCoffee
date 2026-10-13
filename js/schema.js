@@ -396,6 +396,8 @@
     { k: 'scheduledDate', label: 'Scheduled visit', type: 'date' },
     { k: 'arrivedDate', label: 'Tech on site', type: 'date' },
     { k: 'completedDate', label: 'Completed date', type: 'date' },
+    { k: 'resqId', label: 'ResQ work order #', type: 'text' },
+    { k: 'resqLink', label: 'ResQ link', type: 'url', placeholder: 'Paste the work order URL from ResQ' },
     { k: 'vendorTicket', label: 'Vendor ticket #', type: 'text' },
     { k: 'po', label: 'PO #', type: 'text' },
     { k: 'estimate', label: 'Estimate ($)', type: 'number' },

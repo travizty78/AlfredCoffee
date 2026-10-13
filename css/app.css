@@ -254,3 +254,4 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
   .card { box-shadow: none; break-inside: avoid; }
   .cols { grid-template-columns: 1fr 1fr; }
 }
+[hidden] { display: none !important; }

@@ -57,7 +57,7 @@
 
   // ---------- state ----------
   let state = null;
-  const blankState = () => ({ version: 1, locations: [], assets: [], vendors: [], workorders: [], pm: [], docs: [], visits: [], seq: { wo: 1 }, createdAt: new Date().toISOString() });
+  const blankState = () => ({ version: 1, locations: [], assets: [], vendors: [], workorders: [], pm: [], docs: [], visits: [], settings: {}, seq: { wo: 1 }, createdAt: new Date().toISOString() });
 
   let saveTimer = null;
   function save() {
@@ -358,7 +358,9 @@
     const wo = id ? byId('workorders', id) : { status: 'Open', priority: S.WO_PRIORITIES[2].label, woType: 'Repair', reportedDate: today(), ...defaults };
     const extra = id ? attachmentsHtml('workorder', id, wo.locationId) + woHistoryHtml(wo) : '';
     const vendor = wo.vendorId && byId('vendors', wo.vendorId);
-    const vendorBox = vendor ? `<div class="callout">📞 <b>${esc(vendor.company)}</b> ${telLink(vendor.phone)} ${vendor.emergencyPhone ? ' · After-hours: ' + telLink(vendor.emergencyPhone) : ''} ${mailLink(vendor.email)}</div>` : '';
+    const resqHref = wo.resqLink || state.settings.resqUrl;
+    const resqBox = resqHref ? `<div class="callout"><a href="${esc(resqHref)}" target="_blank" rel="noopener">🔗 Open ${wo.resqLink ? `ResQ work order ${esc(wo.resqId || '')}` : 'ResQ'} ↗</a>${!wo.resqId ? ' <span class="muted small">— if this was submitted in ResQ, paste its ResQ # and link above to keep them linked.</span>' : ''}</div>` : '';
+    const vendorBox = resqBox + (vendor ? `<div class="callout">📞 <b>${esc(vendor.company)}</b> ${telLink(vendor.phone)} ${vendor.emergencyPhone ? ' · After-hours: ' + telLink(vendor.emergencyPhone) : ''} ${mailLink(vendor.email)}</div>` : '');
     openForm({
       title: id ? `Work order ${wo.number}` : 'New work order', fields: S.WO_FIELDS, values: wo, extra: vendorBox + extra,
       onSave: v => {
@@ -655,14 +657,14 @@
     return state.workorders.filter(w =>
       (!f.loc || w.locationId === f.loc) && (!f.pri || priId(w.priority) === f.pri) && (!f.cat || w.category === f.cat)
       && (f.status === 'all' || !f.status ? true : f.status === 'open' ? !isClosed(w) : f.status === 'closed' ? isClosed(w) : f.status === 'overdue' ? !isClosed(w) && w.dueDate && w.dueDate < t : w.status === f.status)
-      && (!q || [w.number, w.title, w.description, w.resolution, vendorName(w.vendorId), assetName(w.assetId), w.vendorTicket, w.po, w.invoice].join(' ').toLowerCase().includes(q))
+      && (!q || [w.number, w.title, w.description, w.resolution, vendorName(w.vendorId), assetName(w.assetId), w.vendorTicket, w.po, w.invoice, w.resqId].join(' ').toLowerCase().includes(q))
     ).sort((a, b) => (isClosed(a) - isClosed(b)) || priId(a.priority).localeCompare(priId(b.priority)) || (a.dueDate || '9').localeCompare(b.dueDate || '9'));
   }
 
   function woTable(list, showLoc = true) {
     if (!list.length) return emptyState('No work orders match.');
     return `<div class="table-wrap"><table class="table"><thead><tr><th>#</th><th>Pri</th><th>Issue</th>${showLoc ? '<th>Location</th>' : ''}<th>Vendor</th><th>Status</th><th>Due</th><th class="num">Cost</th></tr></thead><tbody>${list.map(w => `<tr>
-      <td class="nowrap"><a href="#" data-action="edit-wo" data-id="${w.id}">${esc(w.number)}</a></td><td>${priPill(w.priority)}</td>
+      <td class="nowrap"><a href="#" data-action="edit-wo" data-id="${w.id}">${esc(w.number)}</a>${w.resqId ? `<div class="muted small" title="ResQ work order #">ResQ ${esc(w.resqId)}</div>` : ''}</td><td>${priPill(w.priority)}</td>
       <td><a href="#" data-action="edit-wo" data-id="${w.id}">${esc(w.title)}</a><div class="muted small">${esc([catLabel(w.category), assetName(w.assetId)].filter(Boolean).join(' · '))}</div></td>
       ${showLoc ? `<td>${esc(locName(w.locationId))}</td>` : ''}<td>${esc(vendorName(w.vendorId))}</td>
       <td>${selectHtml('st_' + w.id, S.WO_STATUSES.map(s => [s, s]), w.status, '—', `class="sm status-select" data-change="wo-status" data-id="${w.id}"`)}</td>
@@ -684,7 +686,7 @@
   }
 
   function viewWO() {
-    return pageHead('Work orders', `<button class="btn" data-action="export-csv" data-what="workorders">Export CSV</button><button class="btn primary" data-action="add-wo">+ New work order</button>`) + woSection();
+    return pageHead('Work orders', `${state.settings.resqUrl ? `<a class="btn" href="${esc(state.settings.resqUrl)}" target="_blank" rel="noopener">🔗 ResQ ↗</a>` : ''}<label class="btn">⬆ Import ResQ CSV<input type="file" accept=".csv,text/csv" hidden data-change="import-wo-csv"></label><button class="btn" data-action="export-csv" data-what="workorders">Export CSV</button><button class="btn primary" data-action="add-wo">+ New work order</button>`) + woSection();
   }
 
   // --- PM ---
@@ -808,6 +810,12 @@
         <label class="btn">⬆ Restore backup<input type="file" accept=".json,application/json" hidden data-change="import-json"></label></div>
         <h3>Spreadsheet exports (CSV)</h3>
         <div class="btn-row">${['locations', 'assets', 'workorders', 'pm', 'vendors', 'visits'].map(w => `<button class="btn sm" data-action="export-csv" data-what="${w}">${w}</button>`).join('')}</div>
+      </section>
+      <section class="card"><h2>🔗 ResQ work orders</h2>
+        <p class="small">If Alfred runs work orders in <b>ResQ</b>, keep ResQ as the system of record for requests, dispatch, quotes and invoices. Use this app for café specs, site visits, plans, and cross-café reporting. Import a ResQ work-order CSV export any time: columns and café names are matched automatically, and re-importing updates existing ResQ #s instead of creating duplicates.</p>
+        <label class="field full"><span>ResQ web app link (for quick-open buttons)</span><input type="url" id="resq-url" value="${esc(state.settings.resqUrl || '')}" placeholder="https://… (the ResQ address you log in at)" data-change="resq-url"></label>
+        <div class="btn-row" style="margin-top:10px"><label class="btn primary">⬆ Import ResQ work orders (CSV)<input type="file" accept=".csv,text/csv" hidden data-change="import-wo-csv"></label></div>
+        <p class="muted small">Imported work orders show up in Reports (spend, vendor performance, recurring issues, repair vs. replace) and in each café's and asset's history.</p>
       </section>
       <section class="card"><h2>Install & offline</h2>
         <p>Status: <b id="net-status-2">${navigator.onLine ? 'Online' : 'Offline'}</b> · Offline cache: <b>${'serviceWorker' in navigator && navigator.serviceWorker.controller ? 'active' : location.protocol === 'file:' ? 'n/a (opened as a file — still works offline)' : 'not yet active (reload once)'}</b></p>
@@ -1032,6 +1040,202 @@
         ${table(['Asset', 'Location', 'Condition', '#Age', '#Repair spend', '#Replacement', '#Ratio'], rvr, 'No candidates right now.')}</section>`;
   }
 
+  // ---------- ResQ / CSV work-order import ----------
+  function updateResqNav() {
+    const a = $('#resq-link');
+    if (!a) return;
+    a.hidden = !state.settings.resqUrl;
+    if (state.settings.resqUrl) a.href = state.settings.resqUrl;
+  }
+
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], field = '', q = false;
+    text = text.replace(/^﻿/, '');
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; } else field += c;
+      } else if (c === '"') q = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); rows.push(row); row = []; field = '';
+      } else field += c;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(x => x.trim() !== ''));
+  }
+
+  // [target field, label, header pattern used to pre-select the column]
+  const IMPORT_TARGETS = [
+    ['resqId', 'ResQ work order #', /^(work ?order|wo|ticket|request|job)?\s*(#|id|number|no\.?)$|^(work ?order|request) (id|#|number)/],
+    ['title', 'Title / issue', /title|summary|issue|problem|subject/],
+    ['description', 'Description', /description|details|notes?/],
+    ['location', 'Location / café', /location|store|site|restaurant|facility|caf[eé]|branch/],
+    ['category', 'Category / trade', /category|trade|service type|^type$|equipment type/],
+    ['asset', 'Equipment / asset', /equipment|asset/],
+    ['priority', 'Priority', /priority|urgency|severity/],
+    ['status', 'Status', /status|state|stage/],
+    ['vendor', 'Vendor / technician', /vendor|provider|technician|contractor|servicer/],
+    ['reportedDate', 'Created / reported date', /created|submitted|reported|opened|requested/],
+    ['dueDate', 'Due date', /due|deadline/],
+    ['scheduledDate', 'Scheduled date', /scheduled|appointment/],
+    ['arrivedDate', 'Tech arrived / checked in', /arriv|check.?in|on.?site|started/],
+    ['completedDate', 'Completed date', /complet|resolved|closed|finished/],
+    ['cost', 'Total cost', /total|cost|amount|price|spend/],
+    ['invoice', 'Invoice #', /invoice/],
+    ['po', 'PO #', /\bpo\b|purchase order/],
+  ];
+
+  const CATEGORY_WORDS = [
+    ['coffee', /espresso|coffee|grinder|brewer|la marzocco|slayer|mahlk|steam wand|portafilter|cold brew|nitro/],
+    ['icewater', /\bice\b|ice machine|water filter|filtration|reverse osmosis|\bro\b|softener/],
+    ['refrig', /refrig|cooler|freezer|walk.?in|reach.?in|fridge|pastry case|display case/],
+    ['hvac', /hvac|\ba\/?c\b|air condition|heating|furnace|thermostat|exhaust fan|rtu|mini.?split|make.?up air|hood/],
+    ['plumbing', /plumb|drain|clog|sink|leak|water heater|grease|backflow|faucet|pipe/],
+    ['restroom', /restroom|bathroom|toilet|urinal|hand dryer/],
+    ['fire', /fire|sprinkler|extinguisher|ansul|suppression|exit sign|emergency light/],
+    ['electrical', /electric|breaker|outlet|panel|power|wiring|gfci/],
+    ['lighting', /light|lamp|bulb|fixture/],
+    ['doors', /door|lock|key|closer|gate/],
+    ['security', /security|camera|cctv|alarm|nvr/],
+    ['signage', /sign|graphic|menu board|neon/],
+    ['cleaning', /clean|janitor|pressure wash|floor care/],
+    ['pest', /pest|rodent|roach|ant\b|fly|exterminat/],
+    ['flooring', /floor|tile|grout/],
+    ['paint', /paint|touch.?up|wall/],
+    ['ceilings', /ceiling/],
+    ['glass', /glass|window|storefront/],
+    ['furniture', /furniture|chair|table|stool|bench|counter|millwork|shelf|umbrella/],
+    ['roof', /roof|gutter|awning/],
+    ['kitchen', /oven|dishwasher|microwave|toaster|panini|\bpos\b|printer/],
+  ];
+  const guessCategory = text => { const t = (text || '').toLowerCase(); const m = CATEGORY_WORDS.find(([, re]) => re.test(t)); return m ? m[0] : ''; };
+
+  function mapPriority(t) {
+    t = (t || '').toLowerCase();
+    if (/emergenc|critical|p1|asap|immediate/.test(t)) return S.WO_PRIORITIES[0].label;
+    if (/urgent|high|p2/.test(t)) return S.WO_PRIORITIES[1].label;
+    if (/low|schedul|p4|planned/.test(t)) return S.WO_PRIORITIES[3].label;
+    return S.WO_PRIORITIES[2].label;
+  }
+  function mapStatus(t, completed) {
+    t = (t || '').toLowerCase();
+    if (/cancel|void|declin/.test(t)) return 'Cancelled';
+    if (/closed|invoiced|paid/.test(t)) return 'Closed';
+    if (/complet|resolved|done|finished/.test(t)) return 'Completed';
+    if (/part/.test(t)) return 'On hold – parts';
+    if (/quote|approv/.test(t)) return 'On hold – approval';
+    if (/hold|await|pending/.test(t)) return 'On hold – vendor';
+    if (/progress|on.?site|en route|working|check/.test(t)) return 'In progress';
+    if (/assign|dispatch|schedul|accepted/.test(t)) return 'Assigned';
+    return completed ? 'Completed' : 'Open';
+  }
+  function toIsoDate(v) {
+    v = (v || '').trim();
+    if (!v) return '';
+    let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+    m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if (m) { const y = m[3].length === 2 ? '20' + m[3] : m[3]; return `${y}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`; }
+    const d = new Date(v);
+    return isNaN(d) ? '' : iso(d);
+  }
+  const parseMoney = v => { const n = parseFloat(String(v || '').replace(/[^0-9.\-]/g, '')); return isNaN(n) ? '' : String(n); };
+
+  const normName = x => (x || '').toLowerCase().replace(/^alfred\s*(coffee)?\s*[-–—:|]?\s*/, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  function guessLocation(str) {
+    const n = normName(str);
+    if (!n) return '';
+    const locs = [...state.locations].sort((a, b) => b.name.length - a.name.length);
+    const words = n.split(' ');
+    let l = locs.find(x => normName(x.name) === n)
+      || locs.find(x => x.storeNo && words.includes(x.storeNo.toLowerCase()))
+      || locs.find(x => { const ln = normName(x.name).replace(/ new build$/, ''); return ln && (n.includes(ln) || ln.includes(n)); })
+      || locs.find(x => x.address && n.includes(normName(x.address).split(' ').slice(0, 2).join(' ')));
+    return l ? l.id : '';
+  }
+
+  async function importWorkOrdersCsv(file) {
+    const rows = parseCsv(await file.text());
+    if (rows.length < 2) return toast('No rows found in that CSV');
+    if (!state.locations.length) return toast('Add your locations first (Settings → Load Alfred café list)');
+    const headers = rows[0].map(h => h.trim());
+    const data = rows.slice(1);
+    const used = new Set(), guess = {};
+    for (const [k, , re] of IMPORT_TARGETS) {
+      const i = headers.findIndex((h, idx) => !used.has(idx) && re.test(h.toLowerCase()));
+      if (i >= 0) { guess[k] = i; used.add(i); }
+    }
+    const colSel = k => `<select name="map_${k}"><option value="">— not in file —</option>${headers.map((h, i) => `<option value="${i}"${guess[k] === i ? ' selected' : ''}>${esc(h)}</option>`).join('')}</select>`;
+    const html = `<form id="modal-form" novalidate>
+      <p class="small"><b>${data.length}</b> rows in <b>${esc(file.name)}</b>. Check the column matches, match each café, then import. Rows whose ResQ # already exists are <b>updated</b>, not duplicated.</p>
+      <h3>1. Columns</h3><div class="form-grid">${IMPORT_TARGETS.map(([k, label]) => `<label class="field"><span>${esc(label)}</span>${colSel(k)}</label>`).join('')}</div>
+      <h3>2. Cafés</h3><div id="imp-locs"></div>
+      <p class="form-error" hidden></p>
+      <div class="modal-actions"><span class="spacer"></span><button type="button" class="btn" data-action="close-modal">Cancel</button><button type="submit" class="btn primary">Import work orders</button></div></form>`;
+    const d = openModal('Import work orders from ResQ (CSV)', html, true);
+    const form = $('#modal-form', d);
+    const col = k => form.elements['map_' + k].value === '' ? -1 : +form.elements['map_' + k].value;
+    const cell = (r, k) => { const i = col(k); return i < 0 ? '' : (r[i] || '').trim(); };
+    let uniq = [];
+    function renderLocs() {
+      const i = col('location');
+      const box = $('#imp-locs', form);
+      if (i < 0) { uniq = []; box.innerHTML = `<label class="field"><span>No location column — import all rows to:</span>${selectHtml('imp_default', locationPairs(), '', '— choose a location —')}</label>`; return; }
+      uniq = [...new Set(data.map(r => (r[i] || '').trim()))].sort();
+      box.innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>In file</th><th class="num">Rows</th><th>Alfred location</th></tr></thead><tbody>${uniq.map((u, j) =>
+        `<tr><td>${esc(u || '(blank)')}</td><td class="num">${data.filter(r => (r[i] || '').trim() === u).length}</td><td>${selectHtml('imp_loc_' + j, locationPairs(), guessLocation(u), '— skip these rows —')}</td></tr>`).join('')}</tbody></table></div>`;
+    }
+    renderLocs();
+    form.addEventListener('change', e => { if (e.target.name === 'map_location') renderLocs(); });
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const li = col('location');
+      const locFor = r => li < 0 ? form.elements.imp_default.value : (form.elements['imp_loc_' + uniq.indexOf((r[li] || '').trim())] || {}).value || '';
+      if (li < 0 && !form.elements.imp_default.value) { const err = $('.form-error', form); err.hidden = false; err.textContent = 'Choose a location for these rows.'; return; }
+      let created = 0, updated = 0, skipped = 0, newVendors = 0;
+      const now = new Date().toISOString();
+      for (const r of data) {
+        const locationId = locFor(r);
+        if (!locationId) { skipped++; continue; }
+        const title = cell(r, 'title') || cell(r, 'description').slice(0, 90) || 'Imported work order';
+        let vendorId = '';
+        const vn = cell(r, 'vendor');
+        if (vn) {
+          let v = state.vendors.find(x => x.company.toLowerCase() === vn.toLowerCase());
+          if (!v) { v = upsert('vendors', { kind: 'External vendor', company: vn, trade: '', notes: 'Added from ResQ import' }); newVendors++; }
+          vendorId = v.id;
+        }
+        const an = cell(r, 'asset').toLowerCase();
+        const asset = an && state.assets.find(a => a.locationId === locationId && a.name.toLowerCase() === an);
+        const completedDate = toIsoDate(cell(r, 'completedDate'));
+        const catText = [cell(r, 'category'), cell(r, 'asset'), title, cell(r, 'description')].join(' ');
+        const rec = {
+          resqId: cell(r, 'resqId'), title, description: cell(r, 'description'), locationId, category: guessCategory(catText), assetId: asset ? asset.id : '',
+          vendorId, priority: mapPriority(cell(r, 'priority')), status: mapStatus(cell(r, 'status'), completedDate),
+          woType: /prevent|\bpm\b/i.test(catText + cell(r, 'category')) ? 'Preventive maintenance' : '',
+          reportedDate: toIsoDate(cell(r, 'reportedDate')), dueDate: toIsoDate(cell(r, 'dueDate')), scheduledDate: toIsoDate(cell(r, 'scheduledDate')),
+          arrivedDate: toIsoDate(cell(r, 'arrivedDate')), completedDate, cost: parseMoney(cell(r, 'cost')), invoice: cell(r, 'invoice'), po: cell(r, 'po'), source: 'ResQ',
+        };
+        Object.keys(rec).forEach(k => { if (rec[k] === '') delete rec[k]; });
+        const existing = rec.resqId && state.workorders.find(w => w.resqId === rec.resqId);
+        if (existing) {
+          const changes = existing.status !== rec.status ? `ResQ import: status ${existing.status} → ${rec.status}` : 'Updated from ResQ import';
+          upsert('workorders', { ...existing, ...rec, history: [...(existing.history || []), { at: now, text: changes }] });
+          updated++;
+        } else {
+          createWO({ woType: 'Repair', reportedBy: 'ResQ', ...rec, historyText: 'Imported from ResQ' + (rec.resqId ? ' #' + rec.resqId : '') });
+          created++;
+        }
+      }
+      closeModal();
+      toast(`ResQ import: ${created} new, ${updated} updated${skipped ? `, ${skipped} skipped` : ''}${newVendors ? `, ${newVendors} vendors added` : ''}`, 6000);
+      render();
+    });
+  }
+
   // ---------- export / import ----------
   function download(name, content, type) {
     const blob = content instanceof Blob ? content : new Blob([content], { type });
@@ -1149,6 +1353,7 @@
     };
     const html = (views[r.name] || views.dashboard)();
     $('#main').innerHTML = html;
+    updateResqNav();
     $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.route === (r.name === 'loc' ? 'locations' : r.name)));
     document.title = 'Alfred Facilities';
 
@@ -1251,7 +1456,9 @@
       addFiles(files, { ownerType: el.dataset.ownerType, ownerId: el.dataset.ownerId, locationId: el.dataset.loc, kind: kindSel ? kindSel.value || 'Photo' : 'Photo' })
         .then(() => { refreshAttachments(el.dataset.ownerId); toast(`${files.length} file(s) attached`); })
         .catch(err => toast('Upload failed: ' + err.message));
-    } else if (kind === 'import-json') { if (el.files[0]) importJson(el.files[0]); el.value = ''; }
+    } else if (kind === 'import-wo-csv') { if (el.files[0]) importWorkOrdersCsv(el.files[0]); el.value = ''; }
+    else if (kind === 'resq-url') { state.settings.resqUrl = el.value.trim(); save(); updateResqNav(); toast('ResQ link saved'); }
+    else if (kind === 'import-json') { if (el.files[0]) importJson(el.files[0]); el.value = ''; }
     else if (kind === 'theme') { ui.theme = el.value; saveUi(); applyTheme(); }
   });
 
