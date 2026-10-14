@@ -170,14 +170,12 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 .empty p { margin: 0 0 12px; }
 
 /* site visit checklist */
-.checklist .item-photos .photos { margin: 0; gap: 4px; flex-wrap: nowrap; }
-.checklist .item-photos { white-space: nowrap; }
-.checklist .item-photos .ph { width: 40px; height: 40px; }
-.checklist .item-photos .ph.add small { display: none; }
-.checklist .item-photos .ph.add b { font-size: 1.1rem; }
+.checklist .notebox { min-width: 200px; }
+.checklist .notebox input { padding-top: 5px; padding-bottom: 5px; }
+.checklist .notebox .ph { width: 44px; height: 44px; }
 .checklist td { vertical-align: middle; padding: 6px 8px; }
 .checklist .area-row th { background: var(--surface-2); color: var(--text); font-size: .78rem; }
-.checklist input[name^="n_"] { padding: 5px 8px; font-size: .85rem; min-width: 120px; }
+.checklist input[name^="n_"] { font-size: .85rem; }
 .seg { display: inline-block; margin-right: 3px; cursor: pointer; }
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
 .seg span { display: inline-grid; place-items: center; min-width: 34px; height: 30px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; font-weight: 700; font-size: .85rem; color: var(--muted); }
@@ -189,6 +187,20 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 .callout.warn { background: var(--amber-bg); color: var(--amber); }
 .vendor-card.internal { border-left: 3px solid var(--blue); }
 .perf { color: var(--muted); margin: -4px 0 8px; }
+
+/* note box with a paperclip inside (attachments show under the text) */
+.field > label { font-weight: 600; }
+.notebox { position: relative; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.notebox:focus-within { outline: 2px solid var(--link); outline-offset: -1px; }
+.notebox textarea, .notebox input { border: 0; background: transparent; outline: none !important; padding-right: 44px; }
+.notebox textarea { resize: vertical; min-height: 76px; }
+.notebox .note-attach .photos { margin: 0; padding: 0 8px 8px; gap: 6px; }
+.notebox .note-attach .ph { width: 56px; height: 56px; }
+.clip-btn { position: absolute; right: 6px; top: 6px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px; color: var(--muted); cursor: pointer; }
+.clip-btn:hover { background: var(--surface-2); color: var(--text); }
+.clip-btn .clip { width: 20px; height: 20px; }
+.notebox.text .clip-btn { top: 50%; transform: translateY(-50%); }
+.notebox.text:has(.note-attach .photos) .clip-btn { top: 6px; transform: none; }
 
 /* in-form photo viewer */
 .lightbox { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; gap: 12px; }
@@ -208,7 +220,6 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 .ph.add { cursor: pointer; border-style: dashed; gap: 0; align-content: center; }
 .ph.add b { font-size: 1.4rem; font-weight: 400; line-height: 1; }
 .ph.add .clip { width: 26px; height: 26px; margin: 0 auto 2px; display: block; }
-.checklist .item-photos .ph.add .clip { width: 20px; height: 20px; }
 .ph.add:hover { border-color: var(--muted); color: var(--text); }
 .ph:hover { text-decoration: none; }
 .shutoffs { display: grid; gap: 14px; }
@@ -279,9 +290,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
   .checklist .area-row th { display: block; padding: 8px; }
   .checklist .seg span { min-width: 52px; height: 38px; }
   .checklist input[name^="n_"] { width: 100%; }
-  .checklist .item-photos .photos { flex-wrap: wrap; }
-  .checklist .item-photos .ph { width: 56px; height: 56px; }
-  .checklist .item-photos .ph.add small { display: block; }
+  .checklist .notebox { min-width: 0; }
   .sys { flex-wrap: wrap; gap: 4px 8px; align-content: flex-start; text-align: left; }
   .sys > span:nth-child(2) { order: 3; flex-basis: 100%; }
   .sys-select select { flex: 1; max-width: none; }

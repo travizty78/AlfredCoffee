@@ -133,6 +133,11 @@
     const req = f.required ? ' <b class="req">*</b>' : '';
     const ph = f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : '';
     let input;
+    if (f.attach !== undefined && ctx.owner && (f.type === 'textarea' || f.type === 'text')) {
+      const box = f.type === 'textarea' ? `<textarea name="${f.k}" id="${id}" rows="3"${ph}>${esc(val)}</textarea>` : `<input type="text" name="${f.k}" id="${id}" value="${esc(val)}"${ph}>`;
+      return `<div class="field${f.full ? ' full' : ''}"><label for="${id}">${esc(f.label)}${req}</label>
+        <div class="notebox ${f.type}">${box}${photoSlot({ ...ctx.owner, slot: f.attach, kind: 'Photo', inline: true })}</div></div>`;
+    }
     switch (f.type) {
       case 'textarea': input = `<textarea name="${f.k}" id="${id}" rows="3"${ph}>${esc(val)}</textarea>`; break;
       case 'select': input = selectHtml(f.k, f.options.map(o => [o, o]), val); break;
@@ -145,9 +150,6 @@
         input = `<div class="checks">${sortedLocations().map(l => `<label class="check"><input type="checkbox" name="${f.k}" value="${esc(l.id)}"${set.has(l.id) ? ' checked' : ''}> ${esc(l.name)}</label>`).join('') || '<span class="muted">No locations yet</span>'}</div>`;
         return `<div class="field full"><span>${esc(f.label)}</span>${input}</div>`;
       }
-      case 'photos':
-        if (!ctx.owner) return '';
-        return `<div class="field full"><span>${esc(f.label)}</span>${photoSlot({ ...ctx.owner, slot: f.slot || '', kind: 'Photo', label: 'Add photo' })}</div>`;
       case 'file': input = `<input type="file" name="${f.k}" id="${id}" multiple accept="${esc(f.accept || '')}">`; break;
       default: {
         const list = f.list && ctx.brands && ctx.brands.length ? ` list="dl_${f.k}"` : '';
@@ -162,7 +164,6 @@
   function collect(form, fields) {
     const out = {};
     for (const f of fields) {
-      if (f.type === 'photos') continue;
       if (f.type === 'locations') out[f.k] = $$(`input[name="${f.k}"]:checked`, form).map(i => i.value);
       else if (f.type === 'file') out[f.k] = [...(form.elements[f.k].files || [])];
       else { const el = form.elements[f.k]; out[f.k] = el ? el.value.trim() : ''; }
@@ -312,9 +313,15 @@
   const DOC_ACCEPT = 'application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.rtf,.pages,.numbers,.dwg,.dxf,.zip';
   const CLIP_ICON = '<svg class="clip" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   // Photos + documents box: one paperclip button takes photos (camera or gallery), PDFs and other files.
-  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo' }) {
+  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo', inline = false }) {
     const docs = slotDocs(ownerId, slot, locationId, kind);
-    return `<div class="photos" data-photos="${esc(JSON.stringify({ ownerType, ownerId, slot, locationId, kind }))}">${docs.map(thumbHtml).join('')}
+    const data = esc(JSON.stringify({ ownerType, ownerId, slot, locationId, kind, inline }));
+    if (inline) {
+      return `<div class="note-attach" data-photos="${data}">${docs.length ? `<div class="photos">${docs.map(thumbHtml).join('')}</div>` : ''}
+        <label class="clip-btn" title="Attach photo or file">${CLIP_ICON}<input type="file" multiple hidden accept="image/*,${DOC_ACCEPT}"
+          data-change="slot-upload" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-slot="${esc(slot)}" data-loc="${esc(locationId)}" data-kind="${esc(kind)}"></label></div>`;
+    }
+    return `<div class="photos" data-photos="${data}">${docs.map(thumbHtml).join('')}
       <label class="ph add" title="Add photo or file">${CLIP_ICON}<small>Add</small><input type="file" multiple hidden accept="image/*,${DOC_ACCEPT}"
         data-change="slot-upload" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-slot="${esc(slot)}" data-loc="${esc(locationId)}" data-kind="${esc(kind)}"></label></div>`;
   }
@@ -980,7 +987,7 @@
 
   function editVisit(id, defaults = {}) {
     const v = id ? byId('visits', id) : { id: uid(), date: today(), items: [], ...defaults };
-    const vPhotos = slot => photoSlot({ ownerType: 'visit', ownerId: v.id, slot, locationId: v.locationId || '', label: 'Photo' });
+    const vPhotos = slot => photoSlot({ ownerType: 'visit', ownerId: v.id, slot, locationId: v.locationId || '', inline: true });
     const prev = Object.fromEntries((v.items || []).map(i => [i.key, i]));
     const head = [
       { k: 'locationId', label: 'Location', type: 'location', required: true },
@@ -992,18 +999,17 @@
     let lastArea = '';
     const rows = S.VISIT_CHECKLIST.map(([area, label], i) => {
       const key = 'c' + i, r = prev[key] || {};
-      const areaRow = area !== lastArea ? `<tr class="area-row"><th colspan="4">${esc(area)}</th></tr>` : '';
+      const areaRow = area !== lastArea ? `<tr class="area-row"><th colspan="3">${esc(area)}</th></tr>` : '';
       lastArea = area;
       const opt = (val, txt, cls, title) => `<label class="seg ${cls}" title="${title}"><input type="radio" name="${key}" value="${val}"${r.result === val ? ' checked' : ''}><span>${txt}</span></label>`;
       return areaRow + `<tr><td>${esc(label)}</td><td class="nowrap">${opt('pass', '✓', 'ok', 'Good')}${opt('attn', '!', 'attn', 'Needs attention')}${opt('fail', '✗', 'bad', 'Failed / broken')}${opt('na', 'N/A', 'na', 'Not applicable')}</td>
-        <td><input name="n_${key}" value="${esc(r.note || '')}" placeholder="Note"></td><td class="item-photos">${vPhotos('item-' + key)}</td></tr>`;
+        <td><div class="notebox text"><input name="n_${key}" value="${esc(r.note || '')}" placeholder="Note">${vPhotos('item-' + key)}</div></td></tr>`;
     }).join('');
     const html = `<form id="modal-form" novalidate>
       <div class="form-grid">${head.map(f => fieldHtml(f, v[f.k], {}, v)).join('')}</div>
       <div class="btn-row" style="margin:14px 0 6px"><button type="button" class="btn sm" data-visit="allpass">Mark all unanswered ✓</button><span class="muted small">✓ good · ! needs attention · ✗ failed</span></div>
       <div class="table-wrap"><table class="table checklist">${rows}</table></div>
-      <label class="field full" style="margin-top:12px"><span>Visit notes</span><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></label>
-      <div class="field full" style="margin-top:12px"><span>Visit photos</span>${vPhotos('visit')}</div>
+      <div class="field full" style="margin-top:12px"><label for="visit-notes">Visit notes</label><div class="notebox textarea"><textarea name="notes" id="visit-notes" rows="3">${esc(v.notes || '')}</textarea>${vPhotos('visit')}</div></div>
       <label class="check" style="margin-top:10px"><input type="checkbox" name="makeWO" checked> Create work orders for ✗ (P2) and ! (P3) items that don't have one yet</label>
       <p class="form-error" hidden></p>
       <div class="modal-actions">${id ? '<button type="button" class="btn danger" data-visit="delete">Delete</button>' : ''}<span class="spacer"></span>
