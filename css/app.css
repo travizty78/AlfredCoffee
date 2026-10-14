@@ -170,6 +170,10 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 .empty p { margin: 0 0 12px; }
 
 /* site visit checklist */
+.checklist .item-photos .photos { margin: 0; gap: 4px; flex-wrap: nowrap; }
+.checklist .item-photos .ph { width: 40px; height: 40px; }
+.checklist .item-photos .ph.add small { display: none; }
+.checklist .item-photos .ph.add b { font-size: 1.1rem; }
 .checklist td { vertical-align: middle; padding: 6px 8px; }
 .checklist .area-row th { background: var(--surface-2); color: var(--text); font-size: .78rem; }
 .checklist input[name^="n_"] { padding: 5px 8px; font-size: .85rem; min-width: 120px; }
@@ -268,6 +272,9 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
   .checklist .area-row th { display: block; padding: 8px; }
   .checklist .seg span { min-width: 52px; height: 38px; }
   .checklist input[name^="n_"] { width: 100%; }
+  .checklist .item-photos .photos { flex-wrap: wrap; }
+  .checklist .item-photos .ph { width: 56px; height: 56px; }
+  .checklist .item-photos .ph.add small { display: block; }
   .sys { flex-wrap: wrap; gap: 4px 8px; align-content: flex-start; text-align: left; }
   .sys > span:nth-child(2) { order: 3; flex-basis: 100%; }
   .sys-select select { flex: 1; max-width: none; }

@@ -291,6 +291,7 @@
     const doc = byId('docs', id);
     if (!doc) return;
     remove('docs', id);
+    if (state.docs.some(d => d.fileId === doc.fileId)) return; // still used by another record
     try { await DB.deleteFile(doc.fileId); } catch (e) { /* ignore */ }
     if (window.Cloud) Cloud.removeFile(doc.fileId);
     if (urlCache.has(doc.fileId)) { URL.revokeObjectURL(urlCache.get(doc.fileId)); urlCache.delete(doc.fileId); }
@@ -308,10 +309,10 @@
     : (kind && !d.ownerId && !d.slot && d.locationId === locationId && d.kind === kind));
 
   // A row of photo thumbnails with an "add" tile. Used for café photos, shutoffs, plans, systems.
-  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo', label = 'Add photo', pdf = false, imagesOnly = false }) {
+  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo', label = 'Add photo', pdf = false, imagesOnly = false, icon = '＋' }) {
     const docs = slotDocs(ownerId, slot, locationId, kind).filter(d => !imagesOnly || isImage(d));
-    return `<div class="photos" data-photos="${esc(JSON.stringify({ ownerType, ownerId, slot, locationId, kind, label, pdf, imagesOnly }))}">${docs.map(thumbHtml).join('')}
-      <label class="ph add" title="${esc(label)}"><b>＋</b><small>${esc(label)}</small><input type="file" multiple hidden accept="image/*${pdf ? ',application/pdf' : ''}"
+    return `<div class="photos" data-photos="${esc(JSON.stringify({ ownerType, ownerId, slot, locationId, kind, label, pdf, imagesOnly, icon }))}">${docs.map(thumbHtml).join('')}
+      <label class="ph add" title="${esc(label)}"><b>${icon}</b><small>${esc(label)}</small><input type="file" multiple hidden accept="image/*${pdf ? ',application/pdf' : ''}"
         data-change="slot-upload" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-slot="${esc(slot)}" data-loc="${esc(locationId)}" data-kind="${esc(kind)}"></label></div>`;
   }
 
@@ -962,7 +963,8 @@
   const scoreBadge = n => n == null ? '<span class="muted">—</span>' : `<span class="badge ${n >= 90 ? 'green' : n >= 75 ? 'amber' : 'red'}">${n}%</span>`;
 
   function editVisit(id, defaults = {}) {
-    const v = id ? byId('visits', id) : { date: today(), items: [], ...defaults };
+    const v = id ? byId('visits', id) : { id: uid(), date: today(), items: [], ...defaults };
+    const vPhotos = slot => photoSlot({ ownerType: 'visit', ownerId: v.id, slot, locationId: v.locationId || '', label: 'Photo', imagesOnly: true, icon: '📷' });
     const prev = Object.fromEntries((v.items || []).map(i => [i.key, i]));
     const head = [
       { k: 'locationId', label: 'Location', type: 'location', required: true },
@@ -974,22 +976,25 @@
     let lastArea = '';
     const rows = S.VISIT_CHECKLIST.map(([area, label], i) => {
       const key = 'c' + i, r = prev[key] || {};
-      const areaRow = area !== lastArea ? `<tr class="area-row"><th colspan="3">${esc(area)}</th></tr>` : '';
+      const areaRow = area !== lastArea ? `<tr class="area-row"><th colspan="4">${esc(area)}</th></tr>` : '';
       lastArea = area;
       const opt = (val, txt, cls, title) => `<label class="seg ${cls}" title="${title}"><input type="radio" name="${key}" value="${val}"${r.result === val ? ' checked' : ''}><span>${txt}</span></label>`;
       return areaRow + `<tr><td>${esc(label)}</td><td class="nowrap">${opt('pass', '✓', 'ok', 'Good')}${opt('attn', '!', 'attn', 'Needs attention')}${opt('fail', '✗', 'bad', 'Failed / broken')}${opt('na', 'N/A', 'na', 'Not applicable')}</td>
-        <td><input name="n_${key}" value="${esc(r.note || '')}" placeholder="Note"></td></tr>`;
+        <td><input name="n_${key}" value="${esc(r.note || '')}" placeholder="Note"></td><td class="item-photos">${vPhotos('item-' + key)}</td></tr>`;
     }).join('');
     const html = `<form id="modal-form" novalidate>
       <div class="form-grid">${head.map(f => fieldHtml(f, v[f.k], {}, v)).join('')}</div>
       <div class="btn-row" style="margin:14px 0 6px"><button type="button" class="btn sm" data-visit="allpass">Mark all unanswered ✓</button><span class="muted small">✓ good · ! needs attention · ✗ failed</span></div>
       <div class="table-wrap"><table class="table checklist">${rows}</table></div>
       <label class="field full" style="margin-top:12px"><span>Visit notes</span><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></label>
+      <div class="field full" style="margin-top:12px"><span>Visit photos</span>${vPhotos('visit')}</div>
       <label class="check" style="margin-top:10px"><input type="checkbox" name="makeWO" checked> Create work orders for ✗ (P2) and ! (P3) items that don't have one yet</label>
       <p class="form-error" hidden></p>
       <div class="modal-actions">${id ? '<button type="button" class="btn danger" data-visit="delete">Delete</button>' : ''}<span class="spacer"></span>
         <button type="button" class="btn" data-action="close-modal">Cancel</button><button type="submit" class="btn primary">Save visit</button></div></form>`;
     const d = openModal(id ? 'Site visit' : 'New site visit', html, true);
+    pendingNew = id ? null : { coll: 'visits', id: v.id };
+    loadThumbs();
     const form = $('#modal-form', d);
     form.addEventListener('click', e => {
       const b = e.target.closest('[data-visit]');
@@ -1016,10 +1021,14 @@
             historyText: 'Created from site visit',
           });
           it.woId = wo.id;
+          // The item's photos go on the work order too, so whoever fixes it sees the problem.
+          state.docs.filter(x => x.ownerId === v.id && x.slot === 'item-' + it.key)
+            .forEach(x => upsert('docs', { ...x, id: undefined, ownerType: 'workorder', ownerId: wo.id, slot: '', locationId: hv.locationId }));
           made++;
         }
       }
       upsert('visits', { ...v, ...hv, notes: form.elements.notes.value.trim(), items });
+      state.docs.filter(x => x.ownerId === v.id && x.locationId !== hv.locationId).forEach(x => { x.locationId = hv.locationId; });
       closeModal();
       toast(`Visit saved${made ? ` · ${made} work order(s) created` : ''}`);
       render();
