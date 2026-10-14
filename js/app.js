@@ -172,14 +172,54 @@
   }
 
   const dialog = () => $('#modal');
+  // Phone Back button: every open form / photo viewer adds a history entry, so Back closes it
+  // instead of leaving the app. Closing with ✕ removes that entry again.
+  const overlayStack = [];
+  let ignorePops = 0, closingFromBack = false, modalClosedByBack = false;
+  function pushOverlay() { history.pushState({ overlay: true }, '', location.href); overlayStack.push(location.href); }
+  function dropOverlayEntry() {
+    const href = overlayStack.pop();
+    if (href && href === location.href && history.state && history.state.overlay) { ignorePops++; history.back(); }
+  }
+  window.addEventListener('popstate', () => {
+    if (ignorePops) { ignorePops--; return; }
+    if (!overlayStack.length) return;
+    overlayStack.pop();
+    closingFromBack = true;
+    if ($('.viewer-overlay')) closeViewer();
+    else if (dialog().open) { modalClosedByBack = true; closeModal(); }
+    closingFromBack = false;
+  });
+
   function openModal(title, bodyHtml, wide) {
     const d = dialog();
     d.className = wide ? 'wide' : '';
     d.innerHTML = `<div class="modal-head"><h2>${esc(title)}</h2><button class="icon-btn" data-action="close-modal" aria-label="Close">✕</button></div><div class="modal-body">${bodyHtml}</div>`;
-    if (!d.open) d.showModal();
+    if (!d.open) { d.showModal(); pushOverlay(); }
     return d;
   }
   function closeModal() { const d = dialog(); if (d.open) d.close(); d.innerHTML = ''; }
+
+  // Full-screen photo / file viewer with an ✕ (works on top of an open form too).
+  function showViewer(inner, actions = '') {
+    closeViewer(true);
+    const v = document.createElement('div');
+    v.className = 'viewer-overlay';
+    v.innerHTML = `<button type="button" class="viewer-x" data-viewer="close" aria-label="Close">✕</button><div class="viewer-body">${inner}</div>${actions ? `<div class="lb-bar">${actions}</div>` : ''}`;
+    v.addEventListener('click', e => {
+      if (e.target.closest('a')) return;
+      if (e.target === v || e.target.classList.contains('viewer-body') || e.target.closest('[data-viewer="close"]')) closeViewer();
+    });
+    (dialog().open ? dialog() : document.body).appendChild(v);
+    pushOverlay();
+    return v;
+  }
+  function closeViewer(replacing) {
+    const v = $('.viewer-overlay');
+    if (!v) return;
+    v.remove();
+    if (!replacing && !closingFromBack) dropOverlayEntry();
+  }
 
   let pendingNew = null; // { coll, id } of a record being created, so photos added then cancelled are removed
   function openForm({ title, fields, values = {}, ctx = {}, onSave, onDelete, extra = '', wide = true, newRecord = null }) {
@@ -358,38 +398,23 @@
     if (!doc) return;
     try {
       const url = await fileUrl(doc.fileId);
-      if (!isImage(doc) && dialog().open) {
-        const lb = document.createElement('div');
-        lb.className = 'lightbox';
-        lb.innerHTML = `<div class="lb-file"><span>${docIcon(doc)}</span><b>${esc(doc.title)}</b><small>${esc(doc.kind)} · ${fmtSize(doc.size || 0)}</small></div>
-          <div class="lb-bar"><button type="button" class="btn danger" data-lb="delete">Delete</button><span class="spacer"></span><a class="btn" href="${url}" target="_blank" rel="noopener" download="${esc(doc.fileName || doc.title)}">Open</a><button type="button" class="btn" data-lb="close">Close</button></div>`;
-        lb.addEventListener('click', async e => {
-          if (e.target.closest('a')) return;
-          const b = e.target.closest('[data-lb]');
-          if (!b && e.target !== lb) return;
-          if (b && b.dataset.lb === 'delete') { if (!confirm('Delete this file?')) return; await deleteDoc(doc.id); refreshPhotoBoxes(); }
-          lb.remove();
-        });
-        dialog().appendChild(lb);
-      } else if (isImage(doc) && dialog().open) {
-        const lb = document.createElement('div');
-        lb.className = 'lightbox';
-        lb.innerHTML = `<img src="${url}" alt=""><div class="lb-bar"><button type="button" class="btn danger" data-lb="delete">Delete photo</button><span class="spacer"></span><button type="button" class="btn" data-lb="close">Close</button></div>`;
-        lb.addEventListener('click', async e => {
-          const b = e.target.closest('[data-lb]');
-          if (!b && e.target !== lb) return;
-          if (b && b.dataset.lb === 'delete') { if (!confirm('Delete this photo?')) return; await deleteDoc(doc.id); refreshPhotoBoxes(); }
-          lb.remove();
-        });
-        dialog().appendChild(lb);
-      } else if (isImage(doc)) {
-        openModal(doc.title, `<div class="viewer"><img src="${url}" alt="${esc(doc.title)}"></div>
-          <div class="modal-actions"><button class="btn danger" data-action="delete-doc-view" data-id="${doc.id}">Delete</button><span class="spacer"></span><a class="btn" href="${url}" download="${esc(doc.fileName || doc.title)}">Download</a><a class="btn" href="${url}" target="_blank" rel="noopener">Full size</a></div>`, true);
-      } else {
-        const w = window.open(url, '_blank');
-        if (!w) { const a = document.createElement('a'); a.href = url; a.download = doc.fileName || doc.title; a.click(); }
-      }
+      const name = esc(doc.fileName || doc.title);
+      const del = `<button type="button" class="btn danger" data-viewer-delete="${doc.id}">Delete</button><span class="spacer"></span>`;
+      const v = isImage(doc)
+        ? showViewer(`<img src="${url}" alt="${esc(doc.title)}">`, `${del}<a class="btn" href="${url}" download="${name}">Download</a>`)
+        : showViewer(`<div class="lb-file"><span>${docIcon(doc)}</span><b>${esc(doc.title)}</b><small>${esc(doc.kind)} · ${fmtSize(doc.size || 0)}</small></div>`,
+          `${del}<a class="btn primary" href="${url}" target="_blank" rel="noopener" download="${name}">Open</a>`);
+      $('[data-viewer-delete]', v).addEventListener('click', async () => {
+        if (!confirm(isImage(doc) ? 'Delete this photo?' : 'Delete this file?')) return;
+        await deleteDoc(doc.id);
+        closeViewer();
+        if (dialog().open) refreshPhotoBoxes(); else render();
+      });
     } catch (e) { toast(e.message); }
+  }
+
+  function viewImage(src, title) {
+    showViewer(`<img src="${esc(src)}" alt="${esc(title || '')}">`);
   }
 
   async function loadThumbs() {
@@ -720,7 +745,7 @@
       </div>
       <div class="stack">
         <section class="card"><h2>Location photos</h2><p class="muted small">Storefront, interior, back of house, anything useful.</p>
-          ${sitePhoto(l) ? `<div class="photos"><a class="ph" href="${sitePhoto(l)}" target="_blank" rel="noopener" title="Default photo"><img src="${sitePhoto(l)}" alt=""></a></div><p class="muted small">↑ Default photo. Photos you add below show first.</p>` : ''}
+          ${sitePhoto(l) ? `<div class="photos"><a class="ph" href="#" data-action="view-img" data-src="${sitePhoto(l)}" title="Default photo"><img src="${sitePhoto(l)}" alt=""></a></div><p class="muted small">↑ Default photo. Photos you add below show first.</p>` : ''}
           ${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'storefront', locationId: l.id, label: 'Add photo' })}</section>
         <section class="card"><h2>Location info</h2>${info ? `<dl class="info">${info}</dl>` : '<p class="muted">No details yet.</p>'}
           ${text('Lease maintenance responsibilities', l.maintResp)}${text('Access / parking / delivery', l.accessNotes)}${text('Notes', l.notes)}
@@ -1721,6 +1746,7 @@
     'upload-doc': el => uploadDocs({ locationId: el.dataset.loc || ui.docs.loc || '' }),
     'open-doc': el => openDoc(el.dataset.id),
     'edit-doc': el => editDocMeta(el.dataset.id),
+    'view-img': el => viewImage(el.dataset.src),
     'delete-doc-view': el => {
       if (!confirm('Delete this photo / file?')) return;
       deleteDoc(el.dataset.id).then(() => { closeModal(); render(); });
@@ -1922,6 +1948,8 @@
     // Closing the native dialog via Esc should also clear it.
     $('#modal').addEventListener('close', () => {
       $('#modal').innerHTML = '';
+      // The dialog's close event arrives a moment later, so remember whether Back caused it.
+      if (modalClosedByBack) modalClosedByBack = false; else dropOverlayEntry();
       if (pendingNew && !byId(pendingNew.coll, pendingNew.id)) state.docs.filter(d => d.ownerId === pendingNew.id).forEach(d => deleteDoc(d.id));
       pendingNew = null;
     });
