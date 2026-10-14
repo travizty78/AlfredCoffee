@@ -50,9 +50,10 @@ Everyone on the team signs in, and everyone sees the same information on every p
 One-time setup:
 1. In Supabase, open **SQL Editor → New query**, paste all of [`supabase-setup.sql`](supabase-setup.sql), and click **Run**.
 2. Go to **Project Settings → API** and copy the **Project URL** and the **anon / publishable key** into [`js/config.js`](js/config.js). Never use the `service_role` / secret key.
-3. Go to **Authentication → Sign In / Providers** and turn **off** "Allow new users to sign up", so only people you add can get in.
-4. Go to **Authentication → URL Configuration** and set the **Site URL** to the Netlify address. This makes "Forgot password" emails link back to the app.
-5. Add people under **Authentication → Users → Add user → Create new user**: enter their email and a temporary password, and tick **Auto Confirm**. They can change their password in Settings.
+3. Go to **Authentication → URL Configuration** and set the **Site URL** to the Netlify address. This makes "Forgot password" emails link back to the app.
+4. **Coworker sign-up:** run [`supabase-signup.sql`](supabase-signup.sql) in the SQL Editor. Then, in **Authentication → Sign In / Providers**, turn **on** "Allow new users to sign up" and turn **off** "Confirm email". Coworkers tap **Create an account** on the sign-in screen and use their **@alfred.la** email plus the **team code**. Anything else is rejected by the database. Admin emails outside @alfred.la go in the `allowed_emails` table. The SQL file shows how to change the team code.
+
+Supabase's built-in email only delivers to your own Supabase account, so password-reset emails won't reach coworkers. To enable them, add your own email sender under **Authentication → Emails → SMTP Settings** (for example, Gmail with an app password).
 
 On first sign-in, the app loads Alfred's café list automatically. Photos and documents are stored in a private Supabase bucket that only signed-in users can open.
 

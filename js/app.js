@@ -1801,43 +1801,64 @@
   }
 
   // ---------- login ----------
-  function showLogin(message) {
+  const WORK_DOMAIN = 'alfred.la';
+  function showLogin(message, mode = 'signin') {
     document.body.classList.add('signed-out');
     const box = $('#login');
     box.hidden = false;
+    const signup = mode === 'signup';
     box.innerHTML = `<form class="login-card" id="login-form" novalidate>
       <img src="icons/icon.svg" alt="Alfred" class="login-logo">
       <h1>Alfred Facilities</h1>
-      <p class="muted">Sign in to continue</p>
-      <label class="field"><span>Email</span><input type="email" name="email" autocomplete="username" required></label>
-      <label class="field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required></label>
+      <p class="muted">${signup ? `Create your account with your @${WORK_DOMAIN} email` : 'Sign in to continue'}</p>
+      ${signup ? '<label class="field"><span>Your name</span><input name="name" autocomplete="name"></label>' : ''}
+      <label class="field"><span>${signup ? 'Work email' : 'Email'}</span><input type="email" name="email" autocomplete="username" placeholder="${signup ? 'you@' + WORK_DOMAIN : ''}" required></label>
+      <label class="field"><span>Password${signup ? ' (8+ characters)' : ''}</span><input type="password" name="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></label>
+      ${signup ? `<label class="field"><span>Team code</span><input name="code" autocomplete="off" placeholder="Ask your facilities manager"></label>` : ''}
       <p class="form-error"${message ? '' : ' hidden'}>${esc(message || '')}</p>
-      <button class="btn primary big" type="submit">Sign in</button>
-      <button class="link" type="button" data-login="forgot">Forgot password?</button>
-      <p class="muted small">No account? Ask your facilities manager to add you.</p>
+      <button class="btn primary big" type="submit">${signup ? 'Create account' : 'Sign in'}</button>
+      ${signup ? '<button class="link" type="button" data-login="signin">Already have an account? Sign in</button>'
+        : `<button class="link" type="button" data-login="forgot">Forgot password?</button>
+           <p class="muted small">New to the team? <button class="link" type="button" data-login="signup">Create an account</button></p>`}
     </form>`;
     const form = $('#login-form');
     const err = $('.form-error', form);
-    const fail = m => { err.hidden = false; err.textContent = m; };
-    form.elements.email.focus();
+    const fail = m => { err.hidden = false; err.className = 'form-error'; err.textContent = m; };
+    (form.elements.name || form.elements.email).focus();
+    const enter = async () => { box.hidden = true; box.innerHTML = ''; document.body.classList.remove('signed-out'); await startCloud(); };
     form.addEventListener('submit', async e => {
       e.preventDefault();
-      const email = form.elements.email.value.trim(), pw = form.elements.password.value;
+      const email = form.elements.email.value.trim().toLowerCase(), pw = form.elements.password.value;
       if (!email || !pw) return fail('Enter your email and password.');
-      if (!navigator.onLine) return fail("You're offline — connect to sign in the first time.");
+      if (!navigator.onLine) return fail(signup ? "You're offline — connect to create your account." : "You're offline — connect to sign in the first time.");
+      if (signup) {
+        if (!email.endsWith('@' + WORK_DOMAIN)) return fail(`Use your @${WORK_DOMAIN} work email.`);
+        if (pw.length < 8) return fail('Use a password with at least 8 characters.');
+        if (!form.elements.code.value.trim()) return fail('Enter the team code from your facilities manager.');
+      }
       const btn = $('button[type=submit]', form);
-      btn.disabled = true; btn.textContent = 'Signing in…';
+      const label = btn.textContent;
+      btn.disabled = true; btn.textContent = signup ? 'Creating account…' : 'Signing in…';
       try {
-        await Cloud.signIn(email, pw);
-        box.hidden = true; box.innerHTML = '';
-        document.body.classList.remove('signed-out');
-        await startCloud();
+        if (signup) {
+          const session = await Cloud.signUp(email, pw, { team_code: form.elements.code.value.trim(), name: form.elements.name.value.trim() });
+          if (!session) { btn.disabled = false; btn.textContent = label; err.hidden = false; err.className = 'form-note'; err.textContent = 'Account created — check your email for a confirmation link, then sign in.'; return; }
+        } else {
+          await Cloud.signIn(email, pw);
+        }
+        await enter();
       } catch (ex) {
-        fail(/invalid/i.test(ex.message || '') ? 'Wrong email or password.' : (ex.message || 'Could not sign in.'));
-        btn.disabled = false; btn.textContent = 'Sign in';
+        const m = ex.message || '';
+        fail(signup
+          ? (/registered|exists/i.test(m) ? 'That email already has an account — sign in instead.' : /database error|saving new user|team code/i.test(m) ? "Couldn't create the account — check the team code and that you used your @" + WORK_DOMAIN + ' email.' : m || 'Could not create the account.')
+          : (/invalid/i.test(m) ? 'Wrong email or password.' : /not confirmed/i.test(m) ? 'Confirm your email first (check your inbox), then sign in.' : m || 'Could not sign in.'));
+        btn.disabled = false; btn.textContent = label;
       }
     });
-    $('[data-login="forgot"]', form).addEventListener('click', async () => {
+    const sw = $('[data-login="signup"]', form) || $('[data-login="signin"]', form);
+    if (sw) sw.addEventListener('click', () => showLogin('', signup ? 'signin' : 'signup'));
+    const forgot = $('[data-login="forgot"]', form);
+    if (forgot) forgot.addEventListener('click', async () => {
       const email = form.elements.email.value.trim();
       if (!email) return fail('Type your email above first, then tap "Forgot password?".');
       try { await Cloud.resetPassword(email); err.hidden = false; err.className = 'form-note'; err.textContent = `If ${email} has an account, a reset link is on its way. Open it on this device.`; }

@@ -17,6 +17,7 @@
     return {
       getSession: async () => (await sb.auth.getSession()).data.session,
       signIn: async (email, password) => ok(await sb.auth.signInWithPassword({ email, password })).session,
+      signUp: async (email, password, data) => ok(await sb.auth.signUp({ email, password, options: { data } })).session,
       signOut: async () => { await sb.auth.signOut(); },
       resetPassword: async (email, redirectTo) => ok(await sb.auth.resetPasswordForEmail(email, { redirectTo })),
       updatePassword: async password => ok(await sb.auth.updateUser({ password })),
@@ -207,6 +208,10 @@
     },
     async signIn(email, password) {
       session = await backend.signIn(email, password);
+      return session;
+    },
+    async signUp(email, password, data) {
+      session = await backend.signUp(email, password, data);
       return session;
     },
     start: () => start(),
