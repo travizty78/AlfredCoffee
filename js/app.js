@@ -713,7 +713,7 @@
       </div>
       <div class="stack">
         <section class="card"><h2>Location photos</h2><p class="muted small">Storefront, interior, back of house, anything useful.</p>
-          ${sitePhoto(l) ? `<div class="photos"><a class="ph" href="${sitePhoto(l)}" target="_blank" rel="noopener" title="Photo from locations.alfred.la"><img src="${sitePhoto(l)}" alt=""></a></div><p class="muted small">↑ From the Alfred website. Photos you add below show first.</p>` : ''}
+          ${sitePhoto(l) ? `<div class="photos"><a class="ph" href="${sitePhoto(l)}" target="_blank" rel="noopener" title="Default photo"><img src="${sitePhoto(l)}" alt=""></a></div><p class="muted small">↑ Default photo. Photos you add below show first.</p>` : ''}
           ${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'storefront', locationId: l.id, label: 'Add photo' })}</section>
         <section class="card"><h2>Location info</h2>${info ? `<dl class="info">${info}</dl>` : '<p class="muted">No details yet.</p>'}
           ${text('Lease maintenance responsibilities', l.maintResp)}${text('Access / parking / delivery', l.accessNotes)}${text('Notes', l.notes)}

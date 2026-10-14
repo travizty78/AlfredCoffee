@@ -508,8 +508,8 @@
     ['Alfred HQ', 'HQ', '708 N Croft Ave', 'Los Angeles', '90069', '', 'Los Angeles – Central', 'Headquarters / office'],
     ['Warehouse', 'WH', '6711 Odessa Ave', 'Van Nuys', '91406', '', 'San Fernando Valley', 'Warehouse'],
   ];
-  // Café photos from locations.alfred.la (img/locations/<storeNo>.jpg), shown until a team photo is added.
-  const SITE_PHOTOS = ['ak', 'ad', 'bam', 'bh', 'bw', 'bur', 'can', 'cw', 'enc', 'hp', 'kt', 'lax', 'ma', 'mdr', 'mp', 'pv', 'pa', 'pr', 'ro', 'saw', 'sl', 'tv', 'vp', 'ww'];
+  // Default photos (img/locations/<storeNo>.jpg): cafés from locations.alfred.la, plus HQ and warehouse. Shown until a team photo is added.
+  const SITE_PHOTOS = ['ak', 'ad', 'bam', 'bh', 'bw', 'bur', 'can', 'cw', 'enc', 'hp', 'kt', 'lax', 'ma', 'mdr', 'mp', 'pv', 'pa', 'pr', 'ro', 'saw', 'sl', 'tv', 'vp', 'ww', 'hq', 'wh'];
 
   // Names used by the earlier guessed starter list → real café names.
   const SEED_ALIASES = { 'Alfred – Silver Lake': 'Silverlake', 'Alfred – Downtown LA': 'Arts District', 'Alfred – Studio City': 'Ventura Place' };
