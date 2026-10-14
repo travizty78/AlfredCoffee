@@ -1032,7 +1032,7 @@
     }).join('');
     const html = `<form id="modal-form" novalidate>
       <div class="form-grid">${head.map(f => fieldHtml(f, v[f.k], {}, v)).join('')}</div>
-      <div class="btn-row" style="margin:14px 0 6px"><button type="button" class="btn sm" data-visit="allpass">Mark all unanswered ✓</button><span class="muted small">✓ good · ! needs attention · ✗ failed</span></div>
+      <p class="muted small" style="margin:14px 0 6px">✓ good · ! needs attention · ✗ failed · tap again to clear</p>
       <div class="table-wrap"><table class="table checklist">${rows}</table></div>
       <div class="field full" style="margin-top:12px"><label for="visit-notes">Visit notes</label><div class="notebox textarea"><textarea name="notes" id="visit-notes" rows="3">${esc(v.notes || '')}</textarea>${vPhotos('visit')}</div></div>
       <label class="check" style="margin-top:10px"><input type="checkbox" name="makeWO" checked> Create work orders for ✗ (P2) and ! (P3) items that don't have one yet</label>
@@ -1044,9 +1044,15 @@
     loadThumbs();
     const form = $('#modal-form', d);
     form.addEventListener('click', e => {
+      // Tapping the answer that's already selected clears it.
+      const seg = e.target.closest('label.seg');
+      if (seg && e.target.tagName !== 'INPUT') {
+        const input = $('input', seg);
+        if (input.checked) { e.preventDefault(); input.checked = false; }
+        return;
+      }
       const b = e.target.closest('[data-visit]');
       if (!b) return;
-      if (b.dataset.visit === 'allpass') S.VISIT_CHECKLIST.forEach((_, i) => { if (!$(`input[name=c${i}]:checked`, form)) $(`input[name=c${i}][value=pass]`, form).checked = true; });
       if (b.dataset.visit === 'delete' && confirm('Delete this visit? Work orders it created are kept.')) { remove('visits', id); closeModal(); render(); }
     });
     form.addEventListener('submit', e => {
