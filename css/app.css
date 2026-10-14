@@ -207,6 +207,8 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 .ph small { font-size: .65rem; line-height: 1.15; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ph.add { cursor: pointer; border-style: dashed; gap: 0; align-content: center; }
 .ph.add b { font-size: 1.4rem; font-weight: 400; line-height: 1; }
+.ph.add .clip { width: 26px; height: 26px; margin: 0 auto 2px; display: block; }
+.checklist .item-photos .ph.add .clip { width: 20px; height: 20px; }
 .ph.add:hover { border-color: var(--muted); color: var(--text); }
 .ph:hover { text-decoration: none; }
 .shutoffs { display: grid; gap: 14px; }

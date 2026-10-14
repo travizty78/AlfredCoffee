@@ -281,7 +281,7 @@
       upsert('docs', {
         fileId, fileName: file.name, mime: file.type, size: file.size, slot: meta.slot || '',
         title: meta.title && files.length === 1 ? meta.title : file.name.replace(/\.[^.]+$/, ''),
-        kind: meta.kind || 'Other', locationId: meta.locationId || '', ownerType: meta.ownerType || '', ownerId: meta.ownerId || '',
+        kind: meta.kind === 'Photo' && !file.type.startsWith('image/') ? 'Document' : (meta.kind || 'Other'), locationId: meta.locationId || '', ownerType: meta.ownerType || '', ownerId: meta.ownerId || '',
         date: today(), notes: meta.notes || '',
       });
     }
@@ -310,14 +310,13 @@
 
   // A row of photo thumbnails with an "add" tile. Used for café photos, shutoffs, plans, systems.
   const DOC_ACCEPT = 'application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.rtf,.pages,.numbers,.dwg,.dxf,.zip';
-  // Photos + documents box: 📷 adds pictures (camera or gallery), 📎 adds PDFs and other files.
-  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo', label = 'Add photo', icon = '📷' }) {
+  const CLIP_ICON = '<svg class="clip" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  // Photos + documents box: one paperclip button takes photos (camera or gallery), PDFs and other files.
+  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo' }) {
     const docs = slotDocs(ownerId, slot, locationId, kind);
-    const attrs = `data-change="slot-upload" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-slot="${esc(slot)}" data-loc="${esc(locationId)}"`;
-    const fileKind = kind === 'Photo' ? 'Document' : kind;
-    return `<div class="photos" data-photos="${esc(JSON.stringify({ ownerType, ownerId, slot, locationId, kind, label, icon }))}">${docs.map(thumbHtml).join('')}
-      <label class="ph add" title="${esc(label)}"><b>${icon}</b><small>${esc(label)}</small><input type="file" multiple hidden accept="image/*" ${attrs} data-kind="${esc(kind)}"></label>
-      <label class="ph add" title="Add PDF or document"><b>📎</b><small>Add file</small><input type="file" multiple hidden accept="${DOC_ACCEPT}" ${attrs} data-kind="${esc(fileKind)}"></label></div>`;
+    return `<div class="photos" data-photos="${esc(JSON.stringify({ ownerType, ownerId, slot, locationId, kind }))}">${docs.map(thumbHtml).join('')}
+      <label class="ph add" title="Add photo or file">${CLIP_ICON}<small>Add</small><input type="file" multiple hidden accept="image/*,${DOC_ACCEPT}"
+        data-change="slot-upload" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-slot="${esc(slot)}" data-loc="${esc(locationId)}" data-kind="${esc(kind)}"></label></div>`;
   }
 
   function attachmentsHtml(ownerType, ownerId, locationId) {
@@ -1240,7 +1239,7 @@
           <label class="field"><span>Did that fix it?</span><select name="fixed"><option value="">— Choose —</option><option>Yes – fixed on site</option><option>No – still needs help</option></select></label></div>
         <label class="field"><span>Details (optional)</span><textarea name="details" rows="3" placeholder="Error code, where it's leaking, when it started…"></textarea></label>
         <label class="field"><span>Your name</span><input name="by" value="${esc(who)}" autocomplete="name"></label>
-        <p class="muted small">📷 Take a photo — you can attach it to the text or email on the next step.</p>
+        <p class="muted small">Take a photo — you can attach it to the text or email on the next step.</p>
         <p class="form-error" hidden></p>
         <button class="btn primary big" type="submit">Continue</button>
       </form>
