@@ -260,6 +260,14 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
   body.nav-open .sidebar { transform: none; }
   main { padding: 16px 16px 60px; }
   .sys-select { margin-left: 0; width: 100%; }
+  /* site-visit checklist: stack text, buttons, note on phones */
+  .checklist, .checklist tbody { display: block; }
+  .checklist tr { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .checklist td { display: block; padding: 0; border: 0; }
+  .checklist .area-row { padding: 0; border: 0; }
+  .checklist .area-row th { display: block; padding: 8px; }
+  .checklist .seg span { min-width: 52px; height: 38px; }
+  .checklist input[name^="n_"] { width: 100%; }
   .sys { flex-wrap: wrap; gap: 4px 8px; align-content: flex-start; text-align: left; }
   .sys > span:nth-child(2) { order: 3; flex-basis: 100%; }
   .sys-select select { flex: 1; max-width: none; }

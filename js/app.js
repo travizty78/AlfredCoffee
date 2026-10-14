@@ -667,7 +667,7 @@
       + pageHead(esc(l.name), `<button class="btn" data-action="edit-location" data-id="${l.id}">Edit info</button><button class="btn" data-action="print">Print</button><button class="btn" data-action="add-visit" data-loc="${l.id}">📋 Site visit</button><button class="btn primary" data-action="add-wo" data-loc="${l.id}">+ Work order</button>`,
         [addr ? (mapUrl ? `<a href="${mapUrl}" target="_blank" rel="noopener">📍 ${esc(addr)}</a>` : esc(addr)) : '', l.phone ? '☎ ' + telLink(l.phone) : ''].filter(Boolean).join(' · '))
       + `<nav class="tabs">${tabs.map(([t, label]) => `<a href="#/loc/${id}/${t}" class="${tab === t ? 'active' : ''}">${label}</a>`).join('')}
-         <label class="sys-select">Facility system: ${selectHtml('sys', sysOptions, S.catById(tab) ? tab : '', '— Choose a system —', `data-change="goto-system" data-loc="${id}"`)}</label></nav>`;
+         <label class="sys-select">Facility system: ${selectHtml('sys', sysOptions, S.catById(tab) ? tab : '', S.catById(tab) ? '— All systems (overview) —' : '— Choose a system —', `data-change="goto-system" data-loc="${id}"`)}</label></nav>`;
 
     let body;
     if (tab === 'overview') body = locationOverview(l, counts);
@@ -1737,7 +1737,7 @@
     const kind = el.dataset && el.dataset.change;
     if (!kind) return;
     if (kind === 'filter') { ui[el.dataset.group][el.dataset.key] = el.value || (el.dataset.key === 'due' ? 'all' : ''); saveUi(); render(); }
-    else if (kind === 'goto-system') { if (el.value) location.hash = `#/loc/${el.dataset.loc}/${el.value}`; }
+    else if (kind === 'goto-system') location.hash = `#/loc/${el.dataset.loc}/${el.value || 'overview'}`;
     else if (kind === 'wo-status') {
       const w = byId('workorders', el.dataset.id);
       const rec = { ...w, status: el.value, history: [...(w.history || []), { at: new Date().toISOString(), text: `Status: ${w.status} → ${el.value}`, by: who() }] };
