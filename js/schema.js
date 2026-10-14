@@ -407,7 +407,7 @@
     { k: 'cost', label: 'Actual cost ($)', type: 'number' },
     { k: 'invoice', label: 'Invoice #', type: 'text' },
     { k: 'warranty', label: 'Warranty claim', type: 'select', options: YESNO },
-    { k: 'resolution', label: 'Resolution / work performed', type: 'textarea', full: true },
+    { k: 'resolution', label: 'Resolution / work performed', type: 'textarea', full: true, attach: 'resolution' },
   ];
 
   const PM_FREQS = [
