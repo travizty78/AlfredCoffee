@@ -147,7 +147,7 @@
       }
       case 'photos':
         if (!ctx.owner) return '';
-        return `<div class="field full"><span>${esc(f.label)}</span>${photoSlot({ ...ctx.owner, slot: f.slot || '', kind: 'Photo', label: 'Add photo', imagesOnly: !f.slot })}</div>`;
+        return `<div class="field full"><span>${esc(f.label)}</span>${photoSlot({ ...ctx.owner, slot: f.slot || '', kind: 'Photo', label: 'Add photo' })}</div>`;
       case 'file': input = `<input type="file" name="${f.k}" id="${id}" multiple accept="${esc(f.accept || '')}">`; break;
       default: {
         const list = f.list && ctx.brands && ctx.brands.length ? ` list="dl_${f.k}"` : '';
@@ -309,11 +309,15 @@
     : (kind && !d.ownerId && !d.slot && d.locationId === locationId && d.kind === kind));
 
   // A row of photo thumbnails with an "add" tile. Used for café photos, shutoffs, plans, systems.
-  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo', label = 'Add photo', pdf = false, imagesOnly = false, icon = '＋' }) {
-    const docs = slotDocs(ownerId, slot, locationId, kind).filter(d => !imagesOnly || isImage(d));
-    return `<div class="photos" data-photos="${esc(JSON.stringify({ ownerType, ownerId, slot, locationId, kind, label, pdf, imagesOnly, icon }))}">${docs.map(thumbHtml).join('')}
-      <label class="ph add" title="${esc(label)}"><b>${icon}</b><small>${esc(label)}</small><input type="file" multiple hidden accept="image/*${pdf ? ',application/pdf' : ''}"
-        data-change="slot-upload" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-slot="${esc(slot)}" data-loc="${esc(locationId)}" data-kind="${esc(kind)}"></label></div>`;
+  const DOC_ACCEPT = 'application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.rtf,.pages,.numbers,.dwg,.dxf,.zip';
+  // Photos + documents box: 📷 adds pictures (camera or gallery), 📎 adds PDFs and other files.
+  function photoSlot({ ownerType, ownerId, slot = '', locationId = '', kind = 'Photo', label = 'Add photo', icon = '📷' }) {
+    const docs = slotDocs(ownerId, slot, locationId, kind);
+    const attrs = `data-change="slot-upload" data-owner-type="${ownerType}" data-owner-id="${esc(ownerId)}" data-slot="${esc(slot)}" data-loc="${esc(locationId)}"`;
+    const fileKind = kind === 'Photo' ? 'Document' : kind;
+    return `<div class="photos" data-photos="${esc(JSON.stringify({ ownerType, ownerId, slot, locationId, kind, label, icon }))}">${docs.map(thumbHtml).join('')}
+      <label class="ph add" title="${esc(label)}"><b>${icon}</b><small>${esc(label)}</small><input type="file" multiple hidden accept="image/*" ${attrs} data-kind="${esc(kind)}"></label>
+      <label class="ph add" title="Add PDF or document"><b>📎</b><small>Add file</small><input type="file" multiple hidden accept="${DOC_ACCEPT}" ${attrs} data-kind="${esc(fileKind)}"></label></div>`;
   }
 
   function attachmentsHtml(ownerType, ownerId, locationId) {
@@ -348,7 +352,20 @@
     if (!doc) return;
     try {
       const url = await fileUrl(doc.fileId);
-      if (isImage(doc) && dialog().open) {
+      if (!isImage(doc) && dialog().open) {
+        const lb = document.createElement('div');
+        lb.className = 'lightbox';
+        lb.innerHTML = `<div class="lb-file"><span>${docIcon(doc)}</span><b>${esc(doc.title)}</b><small>${esc(doc.kind)} · ${fmtSize(doc.size || 0)}</small></div>
+          <div class="lb-bar"><button type="button" class="btn danger" data-lb="delete">Delete</button><span class="spacer"></span><a class="btn" href="${url}" target="_blank" rel="noopener" download="${esc(doc.fileName || doc.title)}">Open</a><button type="button" class="btn" data-lb="close">Close</button></div>`;
+        lb.addEventListener('click', async e => {
+          if (e.target.closest('a')) return;
+          const b = e.target.closest('[data-lb]');
+          if (!b && e.target !== lb) return;
+          if (b && b.dataset.lb === 'delete') { if (!confirm('Delete this file?')) return; await deleteDoc(doc.id); refreshPhotoBoxes(); }
+          lb.remove();
+        });
+        dialog().appendChild(lb);
+      } else if (isImage(doc) && dialog().open) {
         const lb = document.createElement('div');
         lb.className = 'lightbox';
         lb.innerHTML = `<img src="${url}" alt=""><div class="lb-bar"><button type="button" class="btn danger" data-lb="delete">Delete photo</button><span class="spacer"></span><button type="button" class="btn" data-lb="close">Close</button></div>`;
@@ -401,7 +418,7 @@
     const asset = id ? byId('assets', id) : { id: uid(), status: 'In service', condition: 'Good', ...defaults };
     const cat = S.catById(asset.category) || S.CATEGORIES[0];
     const fields = [{ k: 'locationId', label: 'Location', type: 'location', required: true }, ...S.fieldsFor(cat)];
-    const extra = attachmentsHtml('asset', asset.id, asset.locationId) + (id ? assetHistoryHtml(id) : '');
+    const extra = id ? assetHistoryHtml(id) : '';
     openForm({
       title: `${cat.icon} ${id ? 'Edit' : 'Add'} – ${cat.label}`, fields, values: asset, extra,
       ctx: { brands: cat.brands, owner: { ownerType: 'asset', ownerId: asset.id, locationId: asset.locationId || '' } }, newRecord: id ? null : { coll: 'assets', id: asset.id },
@@ -424,7 +441,7 @@
 
   function editWO(id, defaults = {}) {
     const wo = id ? byId('workorders', id) : { id: uid(), status: 'Open', priority: S.WO_PRIORITIES[2].label, woType: 'Repair', reportedDate: today(), ...defaults };
-    const extra = attachmentsHtml('workorder', wo.id, wo.locationId) + (id ? woHistoryHtml(wo) : '');
+    const extra = id ? woHistoryHtml(wo) : '';
     const vendor = wo.vendorId && byId('vendors', wo.vendorId);
     const resqHref = wo.resqLink || state.settings.resqUrl;
     const resqBox = resqHref ? `<div class="callout"><a href="${esc(resqHref)}" target="_blank" rel="noopener">🔗 Open ${wo.resqLink ? `ResQ work order ${esc(wo.resqId || '')}` : 'ResQ'} ↗</a>${!wo.resqId ? ' <span class="muted small">— if this was submitted in ResQ, paste its ResQ # and link above to keep them linked.</span>' : ''}</div>` : '';
@@ -702,8 +719,8 @@
         <section class="card"><h2>Location info</h2>${info ? `<dl class="info">${info}</dl>` : '<p class="muted">No details yet.</p>'}
           ${text('Lease maintenance responsibilities', l.maintResp)}${text('Access / parking / delivery', l.accessNotes)}${text('Notes', l.notes)}
           <button class="btn sm" data-action="edit-location" data-id="${l.id}">Edit info</button></section>
-        <section class="card"><h2>Floor plan</h2>${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'floorplan', locationId: l.id, kind: 'Floor plan', label: 'Add floor plan', pdf: true })}
-          <h2 style="margin-top:16px">Life safety / evacuation plan</h2>${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'lifesafety', locationId: l.id, kind: 'Life safety / evacuation plan', label: 'Add life safety plan', pdf: true })}
+        <section class="card"><h2>Floor plan</h2>${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'floorplan', locationId: l.id, kind: 'Floor plan', label: 'Add photo' })}
+          <h2 style="margin-top:16px">Life safety / evacuation plan</h2>${photoSlot({ ownerType: 'location', ownerId: l.id, slot: 'lifesafety', locationId: l.id, kind: 'Life safety / evacuation plan', label: 'Add photo' })}
           ${plans.filter(d => !['floorplan', 'lifesafety'].includes(d.slot) && !['Floor plan', 'Life safety / evacuation plan'].includes(d.kind)).length ? `<h3>Other drawings</h3><ul class="list">${plans.filter(d => !['floorplan', 'lifesafety'].includes(d.slot) && !['Floor plan', 'Life safety / evacuation plan'].includes(d.kind)).map(d => `<li>${docIcon(d)} <a href="#" data-action="open-doc" data-id="${d.id}">${esc(d.title)}</a> <span class="muted">${esc(d.kind)}</span></li>`).join('')}</ul>` : ''}</section>
         <section class="card"><h2>🏷️ QR equipment labels</h2><p class="muted small">Print a QR sticker for every tracked item at this café. Staff scan it with their phone camera to report a problem — choosing whether the on-site team can fix it, it needs an Alfred tech, or a vendor.</p>
           <button class="btn sm" data-action="qr-labels" data-loc="${l.id}">Print all labels (${state.assets.filter(a => a.locationId === l.id).length})</button></section>
@@ -964,7 +981,7 @@
 
   function editVisit(id, defaults = {}) {
     const v = id ? byId('visits', id) : { id: uid(), date: today(), items: [], ...defaults };
-    const vPhotos = slot => photoSlot({ ownerType: 'visit', ownerId: v.id, slot, locationId: v.locationId || '', label: 'Photo', imagesOnly: true, icon: '📷' });
+    const vPhotos = slot => photoSlot({ ownerType: 'visit', ownerId: v.id, slot, locationId: v.locationId || '', label: 'Photo' });
     const prev = Object.fromEntries((v.items || []).map(i => [i.key, i]));
     const head = [
       { k: 'locationId', label: 'Location', type: 'location', required: true },
@@ -1764,9 +1781,9 @@
     } else if (kind === 'slot-upload') {
       const files = [...el.files];
       if (!files.length) return;
-      toast('Saving photo…');
+      toast('Saving…');
       addFiles(files, { ownerType: el.dataset.ownerType, ownerId: el.dataset.ownerId, slot: el.dataset.slot, locationId: el.dataset.loc, kind: el.dataset.kind })
-        .then(() => { toast(`${files.length} photo${files.length > 1 ? 's' : ''} added`); if (el.closest('#modal')) refreshPhotoBoxes(); else render(); })
+        .then(() => { toast(`${files.length} ${files.every(f => f.type.startsWith('image/')) ? 'photo' : 'file'}${files.length > 1 ? 's' : ''} added`); if (el.closest('#modal')) refreshPhotoBoxes(); else render(); })
         .catch(err => toast('Upload failed: ' + err.message));
     } else if (kind === 'import-wo-csv') { if (el.files[0]) importWorkOrdersCsv(el.files[0]); el.value = ''; }
     else if (kind === 'setting') { state.settings[el.dataset.key] = el.value.trim(); save(); toast('Saved'); }

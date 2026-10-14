@@ -171,6 +171,7 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 
 /* site visit checklist */
 .checklist .item-photos .photos { margin: 0; gap: 4px; flex-wrap: nowrap; }
+.checklist .item-photos { white-space: nowrap; }
 .checklist .item-photos .ph { width: 40px; height: 40px; }
 .checklist .item-photos .ph.add small { display: none; }
 .checklist .item-photos .ph.add b { font-size: 1.1rem; }
@@ -192,6 +193,10 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 /* in-form photo viewer */
 .lightbox { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; gap: 12px; }
 .lightbox img { max-width: 100%; max-height: calc(100vh - 110px); border-radius: 8px; }
+.lb-file { background: var(--surface); color: var(--text); border-radius: 12px; padding: 24px; display: grid; gap: 6px; text-align: center; min-width: 240px; max-width: 100%; }
+.lb-file span { font-size: 2.6rem; }
+.lb-file b { overflow-wrap: anywhere; }
+.lb-file small { color: var(--muted); }
 .lb-bar { display: flex; gap: 8px; width: min(600px, 100%); }
 
 /* photo slots */

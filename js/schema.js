@@ -28,7 +28,7 @@
     { k: 'lastService', label: 'Last service', type: 'date' },
     { k: 'nextService', label: 'Next service due', type: 'date' },
     { k: 'notes', label: 'Notes', type: 'textarea', full: true },
-    { k: '_photos', label: 'Photos', type: 'photos', full: true },
+    { k: '_photos', label: 'Photos & files', type: 'photos', full: true },
   ];
 
   // Each category: id, label, icon (emoji), brands datalist, type options, and extra fields.
@@ -336,15 +336,15 @@
     { k: 'leaseExp', label: 'Lease expiration', type: 'date' },
     { k: 'maintResp', label: 'Lease maintenance responsibilities', type: 'textarea', full: true, placeholder: 'e.g. Tenant: HVAC, plumbing to main. Landlord: roof, structure, sprinkler main.' },
     { k: 'waterShutoff', label: 'Water main shutoff location', type: 'text', full: true },
-    { k: '_ph_water', label: 'Water shutoff photos', type: 'photos', slot: 'shutoff-water', full: true },
+    { k: '_ph_water', label: 'Water shutoff photos & files', type: 'photos', slot: 'shutoff-water', full: true },
     { k: 'gasShutoff', label: 'Gas shutoff location', type: 'text', full: true },
-    { k: '_ph_gas', label: 'Gas shutoff photos', type: 'photos', slot: 'shutoff-gas', full: true },
+    { k: '_ph_gas', label: 'Gas shutoff photos & files', type: 'photos', slot: 'shutoff-gas', full: true },
     { k: 'electricMain', label: 'Electrical main location', type: 'text', full: true },
-    { k: '_ph_electric', label: 'Electrical main photos', type: 'photos', slot: 'shutoff-electric', full: true },
+    { k: '_ph_electric', label: 'Electrical main photos & files', type: 'photos', slot: 'shutoff-electric', full: true },
     { k: 'healthPermit', label: 'Health permit # / exp', type: 'text' },
     { k: 'accessNotes', label: 'After-hours access / parking / delivery notes', type: 'textarea', full: true },
     { k: 'notes', label: 'Notes', type: 'textarea', full: true },
-    { k: '_ph_store', label: 'Location photos', type: 'photos', slot: 'storefront', full: true },
+    { k: '_ph_store', label: 'Location photos & files', type: 'photos', slot: 'storefront', full: true },
   ];
 
   const TRADES = ['General contractor', 'Handyman', 'HVAC', 'Refrigeration', 'Plumbing', 'Electrical', 'Espresso / coffee equipment', 'Ice machine', 'Water filtration', 'Fire sprinkler', 'Fire extinguisher', 'Fire alarm', 'Hood cleaning', 'Hood suppression', 'Grease trap pumping', 'Backflow testing', 'Pest control', 'Locksmith', 'Glass / glazing', 'Window cleaning', 'Flooring', 'Painting', 'Roofing', 'Millwork / carpentry', 'Furniture', 'Lighting', 'Signage', 'Security / alarm', 'IT / network / POS', 'Janitorial', 'Waste / recycling', 'Landscaping', 'Utility', 'Kitchen equipment', 'Other'];
@@ -393,7 +393,7 @@
     { k: 'assetId', label: 'Asset', type: 'asset' },
     { k: 'priority', label: 'Priority', type: 'select', options: WO_PRIORITIES.map(p => p.label), required: true },
     { k: 'description', label: 'Description', type: 'textarea', full: true },
-    { k: '_photos', label: 'Photos', type: 'photos', full: true },
+    { k: '_photos', label: 'Photos & files', type: 'photos', full: true },
     { k: 'status', label: 'Status', type: 'select', options: WO_STATUSES },
     { k: 'woType', label: 'Type', type: 'select', options: WO_TYPES },
     { k: 'vendorId', label: 'Assigned to (team / vendor)', type: 'vendor' },
@@ -475,7 +475,7 @@
     ['Floor care – scrub / reseal', 'cleaning', 'Quarterly', ''],
   ];
 
-  const DOC_KINDS = ['Floor plan', 'Life safety / evacuation plan', 'Reflected ceiling plan', 'Electrical plan / one-line', 'Plumbing plan', 'Mechanical / HVAC plan', 'As-built drawings', 'Equipment schedule', 'Permit', 'Certificate of occupancy', 'Health permit', 'Inspection report', 'Certificate of insurance (COI)', 'Warranty', 'Manual / spec sheet', 'Quote / proposal', 'Invoice', 'Photo', 'Lease / landlord doc', 'SDS', 'Other'];
+  const DOC_KINDS = ['Floor plan', 'Life safety / evacuation plan', 'Reflected ceiling plan', 'Electrical plan / one-line', 'Plumbing plan', 'Mechanical / HVAC plan', 'As-built drawings', 'Equipment schedule', 'Permit', 'Certificate of occupancy', 'Health permit', 'Inspection report', 'Certificate of insurance (COI)', 'Warranty', 'Manual / spec sheet', 'Quote / proposal', 'Invoice', 'Photo', 'Document', 'Lease / landlord doc', 'SDS', 'Other'];
 
   // Alfred California cafés from locations.alfred.la (provided Oct 2026).
   // [name, storeNo (online-order code), address, city, zip, phone, region, format, status]
