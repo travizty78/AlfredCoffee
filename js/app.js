@@ -1883,7 +1883,6 @@
       ${signup ? '<label class="field"><span>Your name</span><input name="name" autocomplete="name"></label>' : ''}
       <label class="field"><span>${signup ? 'Work email' : 'Email'}</span><input type="email" name="email" autocomplete="username" placeholder="${signup ? 'you@' + WORK_DOMAIN : ''}" required></label>
       <label class="field"><span>Password${signup ? ' (8+ characters)' : ''}</span><span class="pw-wrap"><input type="password" name="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required><button type="button" class="pw-toggle" data-pw-toggle>Show</button></span></label>
-      ${signup ? `<label class="field"><span>Team code</span><input name="code" autocomplete="off" placeholder="Ask your facilities manager"></label>` : ''}
       <p class="form-error"${message ? '' : ' hidden'}>${esc(message || '')}</p>
       <button class="btn primary big" type="submit">${signup ? 'Create account' : 'Sign in'}</button>
       ${signup ? '<button class="link" type="button" data-login="signin">Already have an account? Sign in</button>'
@@ -1903,14 +1902,13 @@
       if (signup) {
         if (!email.endsWith('@' + WORK_DOMAIN)) return fail(`Use your @${WORK_DOMAIN} work email.`);
         if (pw.length < 8) return fail('Use a password with at least 8 characters.');
-        if (!form.elements.code.value.trim()) return fail('Enter the team code from your facilities manager.');
       }
       const btn = $('button[type=submit]', form);
       const label = btn.textContent;
       btn.disabled = true; btn.textContent = signup ? 'Creating account…' : 'Signing in…';
       try {
         if (signup) {
-          const session = await Cloud.signUp(email, pw, { team_code: form.elements.code.value.trim(), name: form.elements.name.value.trim() });
+          const session = await Cloud.signUp(email, pw, { name: form.elements.name.value.trim() });
           if (!session) { btn.disabled = false; btn.textContent = label; err.hidden = false; err.className = 'form-note'; err.textContent = 'Account created — check your email for a confirmation link, then sign in.'; return; }
         } else {
           await Cloud.signIn(email, pw);
@@ -1919,7 +1917,7 @@
       } catch (ex) {
         const m = ex.message || '';
         fail(signup
-          ? (/registered|exists/i.test(m) ? 'That email already has an account — sign in instead.' : /database error|saving new user|team code/i.test(m) ? "Couldn't create the account — check the team code and that you used your @" + WORK_DOMAIN + ' email.' : m || 'Could not create the account.')
+          ? (/registered|exists/i.test(m) ? 'That email already has an account — sign in instead.' : /database error|saving new user/i.test(m) ? "Couldn't create the account — make sure you used your @" + WORK_DOMAIN + ' email.' : m || 'Could not create the account.')
           : (/invalid/i.test(m) ? 'Wrong email or password.' : /not confirmed/i.test(m) ? 'Confirm your email first (check your inbox), then sign in.' : m || 'Could not sign in.'));
         btn.disabled = false; btn.textContent = label;
       }

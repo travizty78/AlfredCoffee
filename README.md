@@ -51,7 +51,7 @@ One-time setup:
 1. In Supabase, open **SQL Editor → New query**, paste all of [`supabase-setup.sql`](supabase-setup.sql), and click **Run**.
 2. Go to **Project Settings → API** and copy the **Project URL** and the **anon / publishable key** into [`js/config.js`](js/config.js). Never use the `service_role` / secret key.
 3. Go to **Authentication → URL Configuration** and set the **Site URL** to the Netlify address. This makes "Forgot password" emails link back to the app.
-4. **Coworker sign-up:** run [`supabase-signup.sql`](supabase-signup.sql) in the SQL Editor. Then, in **Authentication → Sign In / Providers**, turn **on** "Allow new users to sign up" and turn **off** "Confirm email". Coworkers tap **Create an account** on the sign-in screen and use their **@alfred.la** email plus the **team code**. Anything else is rejected by the database. Admin emails outside @alfred.la go in the `allowed_emails` table. The SQL file shows how to change the team code.
+4. **Coworker sign-up:** run [`supabase-signup.sql`](supabase-signup.sql) in the SQL Editor. Then, in **Authentication → Sign In / Providers**, turn **on** "Allow new users to sign up" and turn **off** "Confirm email". Coworkers tap **Create an account** on the sign-in screen and use their **@alfred.la** email. Other addresses are rejected by the database. Admin emails outside @alfred.la go in the `allowed_emails` table.
 
 Supabase's built-in email only delivers to your own Supabase account, so password-reset emails won't reach coworkers. To enable them, add your own email sender under **Authentication → Emails → SMTP Settings** (for example, Gmail with an app password).
 

@@ -1,5 +1,5 @@
 -- Alfred Facilities: let coworkers create their own accounts.
--- Only @alfred.la emails with the team code can sign up (plus emails on the allow list).
+-- Only @alfred.la emails can sign up (plus emails on the allow list).
 -- Paste into Supabase → SQL Editor → New query → Run. Safe to run again.
 
 -- Settings (not readable from the app).
@@ -35,9 +35,6 @@ begin
   if split_part(addr, '@', 2) <> lower(s.allowed_domain) then
     raise exception 'Only @% email addresses can sign up', s.allowed_domain;
   end if;
-  if coalesce(new.raw_user_meta_data ->> 'team_code', '') <> s.team_code then
-    raise exception 'Team code is not correct';
-  end if;
   return new;
 end $$;
 
@@ -45,7 +42,5 @@ drop trigger if exists check_signup on auth.users;
 create trigger check_signup before insert on auth.users
   for each row execute function public.check_signup();
 
--- To change the team code later:
---   update public.signup_settings set team_code = 'New-Code-Here' where id = 1;
 -- To let a non-@alfred.la person in (e.g. a contractor):
 --   insert into public.allowed_emails (email) values ('person@example.com');
