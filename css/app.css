@@ -67,6 +67,7 @@ h3 { font-size: .95rem; margin: .9rem 0 .4rem; }
 .sidebar { width: 220px; flex: none; padding: 16px 10px; border-right: 1px solid var(--border); background: var(--surface); position: sticky; top: 52px; height: calc(100vh - 52px); overflow-y: auto; }
 .sidebar a { display: block; padding: 9px 12px; border-radius: 8px; color: var(--text); margin-bottom: 2px; }
 .sidebar a:hover { background: var(--surface-2); text-decoration: none; }
+#nav-signout { margin-top: 14px; border-top: 1px solid var(--border); border-radius: 0 0 8px 8px; padding-top: 14px; color: var(--muted); }
 .sidebar a.active { background: var(--accent); color: var(--accent-text); }
 main { flex: 1; min-width: 0; padding: 20px 24px 60px; max-width: 1400px; }
 

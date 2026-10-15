@@ -931,15 +931,10 @@
   function viewSettings() {
     const cloud = window.Cloud;
     const st = cloud ? cloud.status : null;
-    const syncLine = !cloud ? '' : st.state === 'error' ? `<span class="badge red">Sync problem</span> <span class="muted small">${esc(st.error)}</span>`
-      : st.state === 'offline' ? `<span class="badge amber">Offline</span> ${st.pending ? `${st.pending} change(s) saved on this device — they'll sync when you're back online.` : ''}`
-      : st.state === 'syncing' ? '<span class="badge">Syncing…</span>'
-      : `<span class="badge green">Synced</span>${st.last ? ` <span class="muted small">${esc(new Date(st.last).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}</span>` : ''}`;
     const account = cloud ? `<section class="card"><h2>👤 Account</h2>
         <p>Signed in as <b>${esc(cloud.email)}</b></p>
-        <p>${syncLine}</p>
-        <p class="muted small">Everyone on the Alfred facilities team signs in and sees the same information. Changes sync automatically across phones and computers, and the app still works with no signal.</p>
-        <div class="btn-row"><button class="btn" data-action="sync-now">↻ Sync now</button><button class="btn" data-action="change-password">Change password</button><button class="btn" data-action="sign-out">Sign out</button></div></section>`
+        <p class="muted small">Everyone on the Alfred facilities team signs in and sees the same information. Changes save and sync automatically across phones and computers, and the app still works with no signal.</p>
+        <div class="btn-row"><button class="btn" data-action="change-password">Change password</button><button class="btn" data-action="sign-out">Sign out</button></div></section>`
       : `<section class="card"><h2>👤 Sign-in & sync</h2><p class="muted small">Not connected yet — your information is saved on this device only. Once Supabase is connected, everyone signs in and the same information shows up on every phone and computer.</p>
         <div class="btn-row"><button class="btn" data-action="export-json" data-files="1">⬇ Save a copy of this device's data</button><label class="btn">⬆ Load a copy<input type="file" accept=".json,application/json" hidden data-change="import-json"></label></div></section>`;
     return pageHead('Settings') + `<div class="cols">
@@ -1766,7 +1761,6 @@
     'export-csv': el => exportCsv(el.dataset.what),
     'seed': () => seedLocations(),
     'print': () => window.print(),
-    'sync-now': () => { Cloud.syncNow().then(() => { toast(Cloud.status.state === 'error' ? 'Sync problem: ' + Cloud.status.error : 'Up to date'); render(); }); },
     'change-password': () => {
       openForm({ title: 'Change password', wide: false, fields: [{ k: 'pw', label: 'New password (8+ characters)', type: 'password', required: true }, { k: 'pw2', label: 'Confirm new password', type: 'password', required: true }],
         onSave: async v => { if (v.pw.length < 8) throw new Error('Use at least 8 characters.'); if (v.pw !== v.pw2) throw new Error("Passwords don't match."); await Cloud.updatePassword(v.pw); toast('Password changed'); } });
@@ -1846,21 +1840,20 @@
     }
   });
 
+  // Syncing happens quietly; the badge only appears when offline or when sync has a problem.
   function updateNet() {
-    const on = navigator.onLine;
     const el = $('#net-status');
     const st = window.Cloud && Cloud.email ? Cloud.status : null;
-    if (st && on) {
-      const map = { syncing: ['Syncing…', 'on'], synced: ['Synced', 'on'], error: ['Sync problem', 'off'], idle: ['Online', 'on'], offline: ['Online', 'on'] };
-      const [text, cls] = map[st.state] || map.idle;
-      el.textContent = text;
-      el.className = 'net ' + cls;
-      el.title = st.state === 'error' ? st.error : st.last ? 'Last synced ' + new Date(st.last).toLocaleTimeString() : '';
+    if (!navigator.onLine) {
+      el.hidden = false; el.className = 'net off'; el.textContent = 'Offline';
+      el.title = st && st.pending ? `${st.pending} change(s) saved on this device — they'll sync when you're back online` : 'Changes are saved on this device';
+    } else if (st && st.state === 'error') {
+      el.hidden = false; el.className = 'net off'; el.textContent = 'Not synced'; el.title = st.error;
     } else {
-      el.textContent = on ? 'Online' : 'Offline';
-      el.className = 'net ' + (on ? 'on' : 'off');
-      el.title = !on && st && st.pending ? `${st.pending} change(s) will sync when you're back online` : '';
+      el.hidden = true;
     }
+    const so = $('#nav-signout');
+    if (so) so.hidden = !(window.Cloud && Cloud.email);
   }
 
   // ---------- login ----------
@@ -1976,7 +1969,7 @@
         setState: s => { state = Object.assign(blankState(), s || {}); },
         persist: () => DB.saveState(state),
         onRemoteChange: () => { if (!dialog().open) render(); },
-        onStatus: () => { updateNet(); const el = $('#main .card h2'); if (route().name === 'settings' && el && !dialog().open && !$('#main input:focus')) render(); },
+        onStatus: () => updateNet(),
         onPasswordRecovery: promptNewPassword,
         onSignedOut: () => showLogin('Your session ended — please sign in again.'),
       });

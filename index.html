@@ -21,7 +21,7 @@
     <form id="global-search" class="global-search" role="search">
       <input type="search" name="q" placeholder="Search serial #, vendor, WO #…" aria-label="Search">
     </form>
-    <span id="net-status" class="net on">Online</span>
+    <span id="net-status" class="net on" hidden></span>
   </header>
 
   <div class="layout">
@@ -37,6 +37,7 @@
       <a href="#/search/" data-route="search">🔎 Search</a>
       <a id="resq-link" href="#" target="_blank" rel="noopener" hidden>🔗 Open ResQ ↗</a>
       <a href="#/settings" data-route="settings">⚙️ Settings</a>
+      <a href="#" id="nav-signout" data-action="sign-out" hidden>↩️ Sign out</a>
     </nav>
     <main id="main" tabindex="-1"><p class="muted">Loading…</p></main>
   </div>
