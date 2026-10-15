@@ -1724,9 +1724,9 @@
       delete copy.id;
       editAsset(null, copy);
     },
-    'add-wo': el => editWO(null, { locationId: el.dataset.loc || ui.wo.loc || '', category: el.dataset.cat || '', assetId: el.dataset.asset || '' }),
+    'add-wo': el => editWO(null, { locationId: el.dataset.loc || '', category: el.dataset.cat || '', assetId: el.dataset.asset || '' }),
     'edit-wo': el => editWO(el.dataset.id),
-    'add-pm': el => editPM(null, { locationId: el.dataset.loc || ui.pm.loc || '' }),
+    'add-pm': el => editPM(null, { locationId: el.dataset.loc || '' }),
     'edit-pm': el => editPM(el.dataset.id),
     'pm-done': el => pmDone(el.dataset.id),
     'pm-wo': el => {
@@ -1744,7 +1744,7 @@
     'edit-visit': el => editVisit(el.dataset.id),
     'add-vendor': () => editVendor(),
     'edit-vendor': el => editVendor(el.dataset.id),
-    'upload-doc': el => uploadDocs({ locationId: el.dataset.loc || ui.docs.loc || '' }),
+    'upload-doc': el => uploadDocs({ locationId: el.dataset.loc || '' }),
     'open-doc': el => openDoc(el.dataset.id),
     'edit-doc': el => editDocMeta(el.dataset.id),
     'view-img': el => viewImage(el.dataset.src),
