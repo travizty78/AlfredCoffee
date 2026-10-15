@@ -1015,12 +1015,14 @@
       { k: 'date', label: 'Visit date', type: 'date', required: true },
       { k: 'by', label: 'Visited by', type: 'text' },
       { k: 'mod', label: 'Manager on duty', type: 'text' },
-      { k: 'cleanliness', label: 'Cleanliness rating', type: 'select', options: ['5 – Excellent', '4 – Good', '3 – Acceptable', '2 – Below standard', '1 – Unacceptable'] },
     ];
+    const cleanField = { k: 'cleanliness', label: 'Cleanliness rating', type: 'select', options: ['5 – Excellent', '4 – Good', '3 – Acceptable', '2 – Below standard', '1 – Unacceptable'] };
     let lastArea = '';
     const rows = S.VISIT_CHECKLIST.map(([area, label], i) => {
       const key = 'c' + i, r = prev[key] || {};
-      const areaRow = area !== lastArea ? `<tr class="area-row"><th colspan="3">${esc(area)}</th></tr>` : '';
+      let areaRow = area !== lastArea ? `<tr class="area-row"><th colspan="3">${esc(area)}</th></tr>` : '';
+      // The cleanliness rating lives in the Cleanliness section.
+      if (area !== lastArea && area === 'Cleanliness') areaRow += `<tr class="rating-row"><td colspan="3">${fieldHtml(cleanField, v.cleanliness, {}, v)}</td></tr>`;
       lastArea = area;
       const opt = (val, txt, cls, title) => `<label class="seg ${cls}" title="${title}"><input type="radio" name="${key}" value="${val}"${r.result === val ? ' checked' : ''}><span>${txt}</span></label>`;
       return areaRow + `<tr><td>${esc(label)}</td><td class="nowrap">${opt('pass', '✓', 'ok', 'Good')}${opt('attn', '!', 'attn', 'Needs attention')}${opt('fail', '✗', 'bad', 'Failed / broken')}${opt('na', 'N/A', 'na', 'Not applicable')}</td>
@@ -1028,7 +1030,7 @@
     }).join('');
     const html = `<form id="modal-form" novalidate>
       <div class="form-grid">${head.map(f => fieldHtml(f, v[f.k], {}, v)).join('')}</div>
-      <p class="muted small" style="margin:14px 0 6px">✓ good · ! needs attention · ✗ failed · tap again to clear</p>
+      <p class="muted small checklist-key">✓ good · ! needs attention · ✗ failed</p>
       <div class="table-wrap"><table class="table checklist">${rows}</table></div>
       <div class="field full" style="margin-top:12px"><label for="visit-notes">Visit notes</label><div class="notebox textarea"><textarea name="notes" id="visit-notes" rows="3">${esc(v.notes || '')}</textarea>${vPhotos('visit')}</div></div>
       <label class="check" style="margin-top:10px"><input type="checkbox" name="makeWO" checked> Create work orders for ✗ (P2) and ! (P3) items that don't have one yet</label>
@@ -1054,7 +1056,7 @@
     form.addEventListener('submit', e => {
       e.preventDefault();
       const err = $('.form-error', form);
-      const hv = collect(form, head);
+      const hv = { ...collect(form, head), cleanliness: form.elements.cleanliness.value };
       if (!hv.locationId || !hv.date) { err.hidden = false; err.textContent = 'Location and date are required.'; return; }
       const items = S.VISIT_CHECKLIST.map(([area, label, cat], i) => {
         const key = 'c' + i, r = $(`input[name=${key}]:checked`, form);

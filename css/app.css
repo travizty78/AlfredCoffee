@@ -177,7 +177,10 @@ dl.info dd { margin: 0; overflow-wrap: anywhere; }
 .checklist .notebox input { padding-top: 5px; padding-bottom: 5px; }
 .checklist .notebox .ph { width: 44px; height: 44px; }
 .checklist td { vertical-align: middle; padding: 6px 8px; }
-.checklist .area-row th { background: var(--surface-2); color: var(--text); font-size: .78rem; }
+.checklist .area-row th { background: var(--surface-2); color: var(--text); font-size: 1.05rem; font-weight: 800; letter-spacing: .04em; padding-top: 12px; padding-bottom: 12px; }
+.checklist .rating-row td { padding-top: 10px; }
+.checklist .rating-row .field { max-width: 360px; }
+.checklist-key { margin: 22px 0 8px; }
 .checklist input[name^="n_"] { font-size: .85rem; }
 .seg { display: inline-block; margin-right: 3px; cursor: pointer; }
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
@@ -298,7 +301,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
   .checklist tr { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .checklist td { display: block; padding: 0; border: 0; }
   .checklist .area-row { padding: 0; border: 0; }
-  .checklist .area-row th { display: block; padding: 8px; }
+  .checklist .area-row th { display: block; padding: 12px 10px; }
   .checklist .seg span { min-width: 52px; height: 38px; }
   .checklist input[name^="n_"] { width: 100%; }
   .checklist .notebox { min-width: 0; }
@@ -313,7 +316,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 /* Phones: forms open full-screen, the same way every time */
 @media (max-width: 760px) {
   dialog, dialog.wide { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; inset: 0; }
-  dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+  dialog[open] { display: flex; flex-direction: column; overflow: clip; }
   dialog .modal-head { padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top)); }
   dialog .modal-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); }
   dialog .modal-actions { bottom: calc(-14px - env(safe-area-inset-bottom)); }
