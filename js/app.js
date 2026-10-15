@@ -156,6 +156,7 @@
         const dl = list ? `<datalist id="dl_${f.k}">${ctx.brands.map(b => `<option value="${esc(b)}">`).join('')}</datalist>` : '';
         const step = f.type === 'number' ? ' step="any"' : '';
         input = `<input type="${f.type}" name="${f.k}" id="${id}" value="${esc(val)}"${ph}${list}${step}>${dl}`;
+        if (f.type === 'password') input = `<span class="pw-wrap">${input}<button type="button" class="pw-toggle" data-pw-toggle>Show</button></span>`;
       }
     }
     return `<label class="field${f.full ? ' full' : ''}" for="${id}"><span>${esc(f.label)}${req}</span>${input}</label>`;
@@ -1777,6 +1778,16 @@
   };
 
   document.addEventListener('click', e => {
+    const pw = e.target.closest('[data-pw-toggle]');
+    if (pw) {
+      e.preventDefault();
+      const input = pw.parentElement.querySelector('input');
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      pw.textContent = show ? 'Hide' : 'Show';
+      pw.setAttribute('aria-pressed', show);
+      return;
+    }
     const el = e.target.closest('[data-action]');
     if (el) {
       if (el.tagName === 'A' || el.tagName === 'BUTTON') e.preventDefault();
@@ -1869,7 +1880,7 @@
       <p class="muted">${signup ? `Create your account with your @${WORK_DOMAIN} email` : 'Sign in to continue'}</p>
       ${signup ? '<label class="field"><span>Your name</span><input name="name" autocomplete="name"></label>' : ''}
       <label class="field"><span>${signup ? 'Work email' : 'Email'}</span><input type="email" name="email" autocomplete="username" placeholder="${signup ? 'you@' + WORK_DOMAIN : ''}" required></label>
-      <label class="field"><span>Password${signup ? ' (8+ characters)' : ''}</span><input type="password" name="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></label>
+      <label class="field"><span>Password${signup ? ' (8+ characters)' : ''}</span><span class="pw-wrap"><input type="password" name="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required><button type="button" class="pw-toggle" data-pw-toggle>Show</button></span></label>
       ${signup ? `<label class="field"><span>Team code</span><input name="code" autocomplete="off" placeholder="Ask your facilities manager"></label>` : ''}
       <p class="form-error"${message ? '' : ' hidden'}>${esc(message || '')}</p>
       <button class="btn primary big" type="submit">${signup ? 'Create account' : 'Sign in'}</button>

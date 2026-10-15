@@ -352,6 +352,12 @@ body.report-mode .sidebar, body.report-mode .global-search, body.report-mode .me
 .callout.danger { background: var(--red-bg); color: var(--red); }
 .center { text-align: center; }
 
+/* password Show / Hide */
+.pw-wrap { position: relative; display: block; }
+.pw-wrap input { padding-right: 68px; }
+.pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; border-radius: 6px; background: var(--surface-2); color: var(--muted); font: inherit; font-size: .8rem; font-weight: 600; padding: 6px 10px; cursor: pointer; }
+.pw-toggle:hover { color: var(--text); }
+
 /* login */
 body.signed-out .topbar, body.signed-out .layout { display: none; }
 #login { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: var(--bg); }
