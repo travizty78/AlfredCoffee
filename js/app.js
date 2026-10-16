@@ -960,7 +960,6 @@
           <label class="field"><span>Name</span><input id="set-fn" value="${esc(state.settings.facilitiesName || '')}" data-change="setting" data-key="facilitiesName" placeholder="e.g. Facilities – Travis"></label>
           <label class="field"><span>Mobile #</span><input type="tel" id="set-fp" value="${esc(state.settings.facilitiesPhone || '')}" data-change="setting" data-key="facilitiesPhone"></label>
           <label class="field"><span>Email</span><input type="email" id="set-fe" value="${esc(state.settings.facilitiesEmail || '')}" data-change="setting" data-key="facilitiesEmail"></label>
-          <label class="field"><span>App web address</span><input type="url" id="set-url" value="${esc(state.settings.appUrl || '')}" data-change="setting" data-key="appUrl" placeholder="${esc(pageBase() || 'https://….netlify.app/')}"></label>
         </div></section>
       </div></div>`;
   }
